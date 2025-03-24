@@ -109,7 +109,7 @@ async def decide_use_tags_or_no(update: Update, context: ContextTypes.DEFAULT_TY
     user_data[TAGS] = []
 
     if update.message.text == "Yes✅":
-        await update.message.reply_text("Input tags one per message, /finishtags to finish",
+        await update.message.reply_text("Input tags one per message, /finish_tags to finish",
                                         reply_markup=ReplyKeyboardRemove())
         return HANDLE_TAGS
     else:
@@ -181,7 +181,7 @@ if __name__ == "__main__":
                                            DECIDE_USE_TAGS_OR_NO: [MessageHandler(filters.Regex("^(Yes✅|No❌)$"),
                                                                                   decide_use_tags_or_no)],
                                            HANDLE_TAGS: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_tags),
-                                                         CommandHandler("finishtags", finish_tags)]
+                                                         CommandHandler("finish_tags", finish_tags)]
                                        },
                                        fallbacks=[CommandHandler("cancel", cancel)]
     )
