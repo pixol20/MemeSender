@@ -1,16 +1,15 @@
-from pyexpat.errors import messages
 from typing import Final
 
 from dotenv import load_dotenv
 from os import getenv
 
-from uuid import uuid4
-from html import escape
 
-from telegram import (Update, InlineQueryResultArticle, InlineQueryResultVideo, InputTextMessageContent,
+
+from telegram import (Update,
                       ReplyKeyboardMarkup,
                       ReplyKeyboardRemove)
-from telegram.constants import ParseMode
+
+
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -18,7 +17,6 @@ from telegram.ext import (
     ConversationHandler,
     MessageHandler,
     filters,
-    InlineQueryHandler
 )
 
 import logging
