@@ -53,6 +53,13 @@ async def add_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     await update.message.reply_text("Send your meme")
     return MEME
 
+def reset_current_upload_data(user_data):
+    user_data[TELEGRAM_MEDIA_ID] = None
+    user_data[MEME_NAME] = None
+    user_data[TAGS] = None
+    user_data[MEDIA_TYPE] = None
+    user_data[LENGTH] = None
+
 def handle_upload(user_id, user_data) -> bool:
     length = 0
     if user_data[MEDIA_TYPE] == "video":
@@ -63,12 +70,8 @@ def handle_upload(user_id, user_data) -> bool:
                                 media_type=user_data[MEDIA_TYPE], length=length,
                                 is_public=True)
 
+    reset_current_upload_data(user_data)
 
-    user_data[TELEGRAM_MEDIA_ID] = None
-    user_data[MEME_NAME] = None
-    user_data[TAGS] = None
-    user_data[MEDIA_TYPE] = None
-    user_data[LENGTH] = None
     return is_successful
 
 async def meme(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -161,6 +164,8 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "Bye! I hope we can talk again some day.", reply_markup=ReplyKeyboardRemove()
     )
+
+    reset_current_upload_data(context.user_data)
 
     return ConversationHandler.END
 
