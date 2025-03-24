@@ -164,12 +164,25 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     return ConversationHandler.END
 
+async def command_in_wrong_place(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.message.from_user
+
+    logger.info("User %s canceled the upload.", user.first_name)
+
+    await update.message.reply_text(
+        "Wrong command. Meme upload canceled", reply_markup=ReplyKeyboardRemove()
+    )
+
+    reset_current_upload_data(context.user_data)
+
+    return ConversationHandler.END
+
 if __name__ == "__main__":
     logger.info("building")
     app = Application.builder().token(BOT_TOKEN).build()
 
     logger.info("adding commands")
-    app.add_handler(CommandHandler('start', start_command))
+    app.add_handler(CommandHandler('start', start_command),group=1)
     conv_handler = ConversationHandler(entry_points=[CommandHandler("add", add_command)],
                                        states={
                                            MEME: [MessageHandler(filters.PHOTO|filters.VIDEO, meme)],
@@ -179,8 +192,9 @@ if __name__ == "__main__":
                                            HANDLE_TAGS: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_tags),
                                                          CommandHandler("finish_tags", finish_tags)]
                                        },
-                                       fallbacks=[CommandHandler("cancel", cancel)]
+                                       fallbacks=[CommandHandler("cancel", cancel),
+                                                  MessageHandler(filters.COMMAND, command_in_wrong_place)]
     )
-    app.add_handler(conv_handler)
+    app.add_handler(conv_handler, group=0)
     logger.info("polling")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
