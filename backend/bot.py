@@ -92,8 +92,6 @@ async def meme(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 async def name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user = update.message.from_user
-    logger.info("name of meme %s: %s", user.first_name, update.message.text)
-
 
     context.user_data[MEME_NAME] = update.message.text
 
@@ -120,6 +118,8 @@ async def decide_use_tags_or_no(update: Update, context: ContextTypes.DEFAULT_TY
         user_id = update.message.from_user.id
 
         await update.message.reply_text("Uploading meme")
+        logger.info("User %s uploading meme: %s", update.message.from_user.first_name, user_data[MEME_NAME])
+
 
         is_successful = handle_upload(user_id, context.user_data)
 
@@ -139,6 +139,7 @@ async def handle_tags(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
         await update.message.reply_text(f"Tags collected: {', '.join(tags)}")
         await update.message.reply_text("Uploading meme")
 
+        logger.info("User %s uploading meme: %s", update.message.from_user.first_name, context.user_data[MEME_NAME])
         is_successful = handle_upload(update.message.from_user.id, context.user_data)
 
         if is_successful:
@@ -159,10 +160,10 @@ async def handle_tags(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
 
-    logger.info("User %s canceled the conversation.", user.first_name)
+    logger.info("User %s canceled the upload.", user.first_name)
 
     await update.message.reply_text(
-        "Bye! I hope we can talk again some day.", reply_markup=ReplyKeyboardRemove()
+        "Meme upload canceled", reply_markup=ReplyKeyboardRemove()
     )
 
     reset_current_upload_data(context.user_data)
