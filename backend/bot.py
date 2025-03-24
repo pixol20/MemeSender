@@ -133,28 +133,28 @@ async def decide_use_tags_or_no(update: Update, context: ContextTypes.DEFAULT_TY
 
 async def handle_tags(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user_input = update.message.text
-    if user_input.lower() == "/finishtags":
-        tags = context.user_data.get("tags", [])
-
-        await update.message.reply_text(f"Tags collected: {', '.join(tags)}")
-        await update.message.reply_text("Uploading meme")
-
-        logger.info("User %s uploading meme: %s", update.message.from_user.first_name, context.user_data[MEME_NAME])
-        is_successful = handle_upload(update.message.from_user.id, context.user_data)
-
-        if is_successful:
-            await update.message.reply_text("Meme uploaded")
-        else:
-            await update.message.reply_text("Something failed")
+    processed_user_input = user_input.strip().lower()
+    context.user_data[TAGS].append(processed_user_input)
+    await update.message.reply_text("✅")
+    return HANDLE_TAGS
 
 
-        return ConversationHandler.END
+async def finish_tags(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    tags = context.user_data.get("tags", [])
+
+    await update.message.reply_text(f"Tags collected: {', '.join(tags)}")
+    await update.message.reply_text("Uploading meme")
+
+    logger.info("User %s uploading meme: %s", update.message.from_user.first_name,
+                context.user_data[MEME_NAME])
+    is_successful = handle_upload(update.message.from_user.id, context.user_data)
+
+    if is_successful:
+        await update.message.reply_text("Meme uploaded")
     else:
-        processed_user_input = user_input.strip().lower()
-        context.user_data[TAGS].append(processed_user_input)
-        await update.message.reply_text("✅")
-        return HANDLE_TAGS
+        await update.message.reply_text("Something failed")
 
+    return ConversationHandler.END
 
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -179,10 +179,11 @@ if __name__ == "__main__":
     conv_handler = ConversationHandler(entry_points=[CommandHandler("add", add_command)],
                                        states={
                                            MEME: [MessageHandler(filters.PHOTO|filters.VIDEO, meme)],
-                                           NAME: [MessageHandler(filters.TEXT, name)],
+                                           NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, name)],
                                            DECIDE_USE_TAGS_OR_NO: [MessageHandler(filters.Regex("^(Yes✅|No❌)$"),
                                                                                   decide_use_tags_or_no)],
-                                           HANDLE_TAGS: [MessageHandler(filters.TEXT, handle_tags)]
+                                           HANDLE_TAGS: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_tags),
+                                                         CommandHandler("finishtags", finish_tags)]
                                        },
                                        fallbacks=[CommandHandler("cancel", cancel)]
     )
