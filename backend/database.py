@@ -1,3 +1,4 @@
+from logging import exception
 from os import getenv
 
 import psycopg2
@@ -7,14 +8,15 @@ load_dotenv()
 
 HOST = getenv("HOST")
 DBNAME = getenv("DBNAME")
-USER = getenv("USER")
+USER = getenv("DBUSER")
 PASSWORD = getenv("PASSWORD")
 PORT = getenv("PORT")
 
 try:
     conn = psycopg2.connect(host=HOST, dbname=DBNAME, user=USER,
                         password=PASSWORD, port=PORT)
-except:
+except BaseException as e:
+    print(str(e))
     print("I am unable to connect to the database")
 
 
