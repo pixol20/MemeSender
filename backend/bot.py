@@ -9,7 +9,6 @@ from telegram import (Update,
                       ReplyKeyboardMarkup,
                       ReplyKeyboardRemove)
 
-
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -58,7 +57,10 @@ def reset_current_upload_data(user_data):
     user_data[MEDIA_TYPE] = None
     user_data[LENGTH] = None
 
-def handle_upload(user_id, user_data) -> bool:
+async def handle_upload(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
+    user_data = context.user_data
+    user_id = update.message.from_user.id
+
     length = 0
     if user_data[MEDIA_TYPE] == "video":
         length = user_data.get(LENGTH, 0)
@@ -68,8 +70,12 @@ def handle_upload(user_id, user_data) -> bool:
                                 media_type=user_data[MEDIA_TYPE], length=length,
                                 is_public=True)
 
-    reset_current_upload_data(user_data)
+    if is_successful:
+        await update.message.reply_text("Meme uploaded")
+    else:
+        await update.message.reply_text("Something failed")
 
+    reset_current_upload_data(user_data)
     return is_successful
 
 async def meme(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -118,13 +124,7 @@ async def decide_use_tags_or_no(update: Update, context: ContextTypes.DEFAULT_TY
         await update.message.reply_text("Uploading meme")
         logger.info("User %s uploading meme: %s", update.message.from_user.first_name, user_data[MEME_NAME])
 
-
-        is_successful = handle_upload(user_id, context.user_data)
-
-        if is_successful:
-            await update.message.reply_text("Meme uploaded")
-        else:
-            await update.message.reply_text("Something failed")
+        await handle_upload(update, context)
 
         return ConversationHandler.END
 
@@ -145,12 +145,8 @@ async def finish_tags(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 
     logger.info("User %s uploading meme: %s", update.message.from_user.first_name,
                 context.user_data[MEME_NAME])
-    is_successful = handle_upload(update.message.from_user.id, context.user_data)
 
-    if is_successful:
-        await update.message.reply_text("Meme uploaded")
-    else:
-        await update.message.reply_text("Something failed")
+    await handle_upload(update, context)
 
     return ConversationHandler.END
 
