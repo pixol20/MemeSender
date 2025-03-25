@@ -4,6 +4,8 @@ from os import getenv
 import psycopg2
 from dotenv import load_dotenv
 
+MEMES_IN_INLINE_LIST = 20
+
 load_dotenv()
 
 HOST = getenv("HOST")
@@ -20,13 +22,15 @@ except BaseException as e:
     print("I am unable to connect to the database")
 
 
-def search_for_meme_by_name(name: str):
+def search_for_meme_inline_by_query(query: str):
     with conn.cursor() as curs:
         try:
-            curs.execute("SELECT Telegram_ID FROM meme_table WHERE name = %s;", (name,))
+            curs.execute("SELECT name, telegram_media_id, media_type FROM public.memes WHERE name = %s OR %s = ANY(tags);",
+                         (query,query))
             conn.commit()
-            return curs.fetchall()
+            return curs.fetchmany(MEMES_IN_INLINE_LIST)
         except (Exception, psycopg2.DatabaseError) as error:
+            conn.rollback()
             print("error: " + str(error))
 
 def add_database_entry(user_id: int, telegram_media_id: int, name: str, tags: list[str], media_type: str,

@@ -3,11 +3,14 @@ from typing import Final
 from dotenv import load_dotenv
 from os import getenv
 
+from uuid import uuid4
 
 
 from telegram import (Update,
                       ReplyKeyboardMarkup,
-                      ReplyKeyboardRemove)
+                      ReplyKeyboardRemove,
+                      InlineQueryResultCachedVideo,
+                      InlineQueryResultCachedPhoto)
 
 from telegram.ext import (
     Application,
@@ -16,10 +19,12 @@ from telegram.ext import (
     ConversationHandler,
     MessageHandler,
     filters,
+    InlineQueryHandler
 )
 
 import logging
 import database
+from database import search_for_meme_inline_by_query
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -51,6 +56,7 @@ async def add_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     return MEME
 
 def reset_current_upload_data(user_data):
+    """Resets all current meme upload related data"""
     user_data[TELEGRAM_MEDIA_ID] = None
     user_data[MEME_NAME] = None
     user_data[TAGS] = None
@@ -64,6 +70,11 @@ async def handle_upload(update: Update, context: ContextTypes.DEFAULT_TYPE) -> b
     length = 0
     if user_data[MEDIA_TYPE] == "video":
         length = user_data.get(LENGTH, 0)
+
+    logger.info("User %s uploading meme: %s", update.message.from_user.first_name,
+                context.user_data[MEME_NAME])
+
+    await update.message.reply_text("Uploading meme", reply_markup=ReplyKeyboardRemove())
 
     is_successful = database.add_database_entry(user_id=user_id, telegram_media_id=user_data[TELEGRAM_MEDIA_ID],
                                 name=user_data[MEME_NAME], tags=user_data[TAGS],
@@ -95,8 +106,6 @@ async def meme(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     return NAME
 
 async def name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    user = update.message.from_user
-
     context.user_data[MEME_NAME] = update.message.text
 
     reply_keyboard = [["Yes✅","No❌"]]
@@ -119,13 +128,7 @@ async def decide_use_tags_or_no(update: Update, context: ContextTypes.DEFAULT_TY
                                         reply_markup=ReplyKeyboardRemove())
         return HANDLE_TAGS
     else:
-        user_id = update.message.from_user.id
-
-        await update.message.reply_text("Uploading meme")
-        logger.info("User %s uploading meme: %s", update.message.from_user.first_name, user_data[MEME_NAME])
-
         await handle_upload(update, context)
-
         return ConversationHandler.END
 
 
@@ -141,10 +144,6 @@ async def finish_tags(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     tags = context.user_data.get("tags", [])
 
     await update.message.reply_text(f"Tags collected: {', '.join(tags)}")
-    await update.message.reply_text("Uploading meme")
-
-    logger.info("User %s uploading meme: %s", update.message.from_user.first_name,
-                context.user_data[MEME_NAME])
 
     await handle_upload(update, context)
 
@@ -177,6 +176,34 @@ async def command_in_wrong_place(update: Update, context: ContextTypes.DEFAULT_T
 
     return ConversationHandler.END
 
+
+def generate_inline_list(database_data) -> list:
+    """Generate inline entries from database response"""
+    inline_list = []
+    for i_meme in database_data:
+        if i_meme[2] == "video":
+            inline_list.append(InlineQueryResultCachedVideo(id=str(uuid4()),
+                                                            video_file_id=i_meme[1],
+                                                            title=i_meme[0],
+                                                            ))
+        elif i_meme[2] == "image":
+            inline_list.append(InlineQueryResultCachedPhoto(id=str(uuid4()),
+                                                            photo_file_id=i_meme[1],
+                                                            title=i_meme[0]))
+    return inline_list
+
+async def inline_query(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.inline_query.query
+
+
+    if not query:  # empty query should not be handled
+        return
+
+    results = generate_inline_list(search_for_meme_inline_by_query(query))
+
+    await update.inline_query.answer(results)
+
+
 if __name__ == "__main__":
     logger.info("building")
     app = Application.builder().token(BOT_TOKEN).build()
@@ -196,5 +223,7 @@ if __name__ == "__main__":
                                                   MessageHandler(filters.COMMAND, command_in_wrong_place)]
     )
     app.add_handler(conv_handler, group=0)
+
+    app.add_handler(InlineQueryHandler(inline_query))
     logger.info("polling")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
