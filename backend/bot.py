@@ -96,9 +96,9 @@ async def meme(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     duration = 0
 
     if message.photo:
-        # Handle images
+        # Handle photos
         media = message.photo[-1]  # Highest resolution
-        media_type = "image"
+        media_type = "photo"
     elif message.video:
         # Handle videos
         media = message.video
