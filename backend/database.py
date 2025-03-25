@@ -82,7 +82,7 @@ def add_database_entry(user_id: int,
             conn.commit()
             return True
         except BaseException as error:
-            logging.error(f"Error while searching for meme {error}")
+            logging.error(f"Error inserting meme: {error}")
             conn.rollback()
             return False
         finally:
