@@ -44,7 +44,7 @@ MEME, NAME, DECIDE_USE_TAGS_OR_NO, HANDLE_TAGS = range(4)
 
 # user_data keys
 MEME_NAME = "meme_name"
-MEDIA_TYPE = "meme_type"
+MEDIA_TYPE = "media_type"
 TELEGRAM_MEDIA_ID = "telegram_media_id"
 DURATION = "duration"
 TAGS = "tags"
