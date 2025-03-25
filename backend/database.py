@@ -34,11 +34,11 @@ def search_for_meme_inline_by_query(query: str):
             print("error: " + str(error))
 
 def add_database_entry(user_id: int, telegram_media_id: int, name: str, tags: list[str], media_type: str,
-                       length=0, is_public=False) -> bool:
+                       duration=0, is_public=False) -> bool:
     with conn.cursor() as curs:
         try:
-            curs.execute("""INSERT INTO public.memes(telegram_uploader_id, telegram_media_id, length, name, tags, media_type, is_public)
-	VALUES (%s, %s, %s, %s, %s, %s, %s);""", (user_id, telegram_media_id, length, name, tags, media_type, is_public))
+            curs.execute("""INSERT INTO public.memes(telegram_uploader_id, telegram_media_id, duration, name, tags, media_type, is_public)
+	VALUES (%s, %s, %s, %s, %s, %s, %s);""", (user_id, telegram_media_id, duration, name, tags, media_type, is_public))
             conn.commit()
             return True
         except BaseException as e:

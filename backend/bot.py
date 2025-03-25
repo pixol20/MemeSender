@@ -43,7 +43,7 @@ MEME, NAME, DECIDE_USE_TAGS_OR_NO, HANDLE_TAGS = range(4)
 MEME_NAME = "meme_name"
 MEDIA_TYPE = "meme_type"
 TELEGRAM_MEDIA_ID = "telegram_media_id"
-LENGTH = "length"
+DURATION = "duration"
 TAGS = "tags"
 
 
@@ -61,15 +61,15 @@ def reset_current_upload_data(user_data):
     user_data[MEME_NAME] = None
     user_data[TAGS] = None
     user_data[MEDIA_TYPE] = None
-    user_data[LENGTH] = None
+    user_data[DURATION] = None
 
 async def handle_upload(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
     user_data = context.user_data
     user_id = update.message.from_user.id
 
-    length = 0
+    duration = 0
     if user_data[MEDIA_TYPE] == "video":
-        length = user_data.get(LENGTH, 0)
+        duration = user_data.get(DURATION, 0)
 
     logger.info("User %s uploading meme: %s", update.message.from_user.first_name,
                 context.user_data[MEME_NAME])
@@ -77,9 +77,9 @@ async def handle_upload(update: Update, context: ContextTypes.DEFAULT_TYPE) -> b
     await update.message.reply_text("Uploading meme", reply_markup=ReplyKeyboardRemove())
 
     is_successful = database.add_database_entry(user_id=user_id, telegram_media_id=user_data[TELEGRAM_MEDIA_ID],
-                                name=user_data[MEME_NAME], tags=user_data[TAGS],
-                                media_type=user_data[MEDIA_TYPE], length=length,
-                                is_public=True)
+                                                name=user_data[MEME_NAME], tags=user_data[TAGS],
+                                                media_type=user_data[MEDIA_TYPE], duration=duration,
+                                                is_public=True)
 
     if is_successful:
         await update.message.reply_text("Meme uploaded")
@@ -100,7 +100,7 @@ async def meme(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         video_file = await update.message.video.get_file()
         context.user_data[MEDIA_TYPE] = "video"
         context.user_data[TELEGRAM_MEDIA_ID] = video_file.file_id
-        context.user_data[LENGTH] = update.message.video.duration
+        context.user_data[DURATION] = update.message.video.duration
 
     await update.message.reply_text("Name your meme")
     return NAME
