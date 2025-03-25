@@ -10,7 +10,10 @@ from telegram import (Update,
                       ReplyKeyboardMarkup,
                       ReplyKeyboardRemove,
                       InlineQueryResultCachedVideo,
-                      InlineQueryResultCachedPhoto)
+                      InlineQueryResultCachedPhoto,
+                      InlineQueryResultCachedGif,
+                      InlineQueryResultCachedVoice,
+                      InlineQueryResultCachedAudio)
 
 from telegram.ext import (
     Application,
@@ -67,9 +70,6 @@ async def handle_upload(update: Update, context: ContextTypes.DEFAULT_TYPE) -> b
     user_data = context.user_data
     user_id = update.message.from_user.id
 
-    duration = 0
-    if user_data[MEDIA_TYPE] == "video":
-        duration = user_data.get(DURATION, 0)
 
     logger.info("User %s uploading meme: %s", update.message.from_user.first_name,
                 context.user_data[MEME_NAME])
@@ -78,7 +78,7 @@ async def handle_upload(update: Update, context: ContextTypes.DEFAULT_TYPE) -> b
 
     is_successful = database.add_database_entry(user_id=user_id, telegram_media_id=user_data[TELEGRAM_MEDIA_ID],
                                                 name=user_data[MEME_NAME], tags=user_data[TAGS],
-                                                media_type=user_data[MEDIA_TYPE], duration=duration,
+                                                media_type=user_data[MEDIA_TYPE], duration=user_data[DURATION],
                                                 is_public=True)
 
     if is_successful:
@@ -90,17 +90,42 @@ async def handle_upload(update: Update, context: ContextTypes.DEFAULT_TYPE) -> b
     return is_successful
 
 async def meme(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    user = update.message.from_user
-    if update.message.photo:
-        photo_file = await update.message.photo[-1].get_file()
-        context.user_data[MEDIA_TYPE] = "photo"
-        context.user_data[TELEGRAM_MEDIA_ID] = photo_file.file_id
+    message = update.message
+    media = None
+    media_type = None
+    duration = 0
 
-    elif update.message.video:
-        video_file = await update.message.video.get_file()
-        context.user_data[MEDIA_TYPE] = "video"
-        context.user_data[TELEGRAM_MEDIA_ID] = video_file.file_id
-        context.user_data[DURATION] = update.message.video.duration
+    if message.photo:
+        # Handle images
+        media = message.photo[-1]  # Highest resolution
+        media_type = "image"
+    elif message.video:
+        # Handle videos
+        media = message.video
+        media_type = "video"
+        duration = media.duration
+    elif message.animation:
+        # Handle GIFs
+        media = message.animation
+        media_type = "gif"
+        duration = media.duration
+    elif message.voice:
+        # Handle voice messages
+        media = message.voice
+        media_type = "voice"
+        duration = media.duration
+
+    elif message.audio:
+        # Handle audio messages
+        media = message.audio
+        media_type = "audio"
+        duration = media.duration
+
+    if media:
+        context.user_data[MEDIA_TYPE] = media_type
+        context.user_data[TELEGRAM_MEDIA_ID] = media.file_id
+        context.user_data[DURATION] = duration
+
 
     await update.message.reply_text("Name your meme")
     return NAME
@@ -182,19 +207,38 @@ def generate_inline_list(database_data) -> list:
     inline_list = []
     for i_meme in database_data:
         if i_meme[2] == "video":
-            inline_list.append(InlineQueryResultCachedVideo(id=str(uuid4()),
-                                                            video_file_id=i_meme[1],
-                                                            title=i_meme[0],
-                                                            ))
+            inline_list.append(InlineQueryResultCachedVideo(
+                id=str(uuid4()),
+                video_file_id=i_meme[1],
+                title=i_meme[0],
+            ))
         elif i_meme[2] == "photo":
-            inline_list.append(InlineQueryResultCachedPhoto(id=str(uuid4()),
-                                                            photo_file_id=i_meme[1],
-                                                            title=i_meme[0]))
+            inline_list.append(InlineQueryResultCachedPhoto(
+                id=str(uuid4()),
+                photo_file_id=i_meme[1],
+                title=i_meme[0]
+            ))
+        elif i_meme[2] == "gif":
+            inline_list.append(InlineQueryResultCachedGif(
+                id=str(uuid4()),
+                gif_file_id=i_meme[1],
+                title=i_meme[0]
+            ))
+        elif i_meme[2] == "voice":
+            inline_list.append(InlineQueryResultCachedVoice(
+                id=str(uuid4()),
+                voice_file_id=i_meme[1],
+                title=i_meme[0]
+            ))
+        elif i_meme[2] == "audio":
+            inline_list.append(InlineQueryResultCachedAudio(
+                id=str(uuid4()),
+                audio_file_id=i_meme[1],
+            ))
     return inline_list
 
 async def inline_query(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.inline_query.query
-
 
     if not query:  # empty query should not be handled
         return
@@ -212,7 +256,7 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler('start', start_command),group=1)
     conv_handler = ConversationHandler(entry_points=[CommandHandler("add", add_command)],
                                        states={
-                                           MEME: [MessageHandler(filters.PHOTO|filters.VIDEO, meme)],
+                                           MEME: [MessageHandler(filters.PHOTO|filters.VIDEO|filters.AUDIO|filters.ANIMATION|filters.VOICE, meme)],
                                            NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, name)],
                                            DECIDE_USE_TAGS_OR_NO: [MessageHandler(filters.Regex("^(Yes✅|No❌)$"),
                                                                                   decide_use_tags_or_no)],
