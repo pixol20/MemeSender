@@ -131,8 +131,8 @@ async def meme(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     return NAME
 
 async def name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    context.user_data[MEME_NAME] = update.message.text
-
+    processed_user_input = update.message.text.strip().casefold()
+    context.user_data[MEME_NAME] = processed_user_input
     reply_keyboard = [["Yes✅","No❌"]]
     await update.message.reply_text(
         "Do you want to add tags that help to search it later?",
@@ -159,7 +159,7 @@ async def decide_use_tags_or_no(update: Update, context: ContextTypes.DEFAULT_TY
 
 async def handle_tags(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user_input = update.message.text
-    processed_user_input = user_input.strip().lower()
+    processed_user_input = user_input.strip().casefold()
     context.user_data[TAGS].append(processed_user_input)
     await update.message.reply_text("✅")
     return HANDLE_TAGS
@@ -243,9 +243,10 @@ async def inline_query(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     if not query:  # empty query should not be handled
         return
 
-    results = generate_inline_list(search_for_meme_inline_by_query(query))
+    processed_query = query.strip().casefold()
+    results = generate_inline_list(search_for_meme_inline_by_query(processed_query))
 
-    await update.inline_query.answer(results)
+    await update.inline_query.answer(results, cache_time=4)
 
 
 if __name__ == "__main__":
