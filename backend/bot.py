@@ -93,7 +93,7 @@ async def meme(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user = update.message.from_user
     if update.message.photo:
         photo_file = await update.message.photo[-1].get_file()
-        context.user_data[MEDIA_TYPE] = "image"
+        context.user_data[MEDIA_TYPE] = "photo"
         context.user_data[TELEGRAM_MEDIA_ID] = photo_file.file_id
 
     elif update.message.video:
@@ -186,7 +186,7 @@ def generate_inline_list(database_data) -> list:
                                                             video_file_id=i_meme[1],
                                                             title=i_meme[0],
                                                             ))
-        elif i_meme[2] == "image":
+        elif i_meme[2] == "photo":
             inline_list.append(InlineQueryResultCachedPhoto(id=str(uuid4()),
                                                             photo_file_id=i_meme[1],
                                                             title=i_meme[0]))
