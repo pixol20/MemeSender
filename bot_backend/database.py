@@ -26,7 +26,7 @@ pool = None
 # create connection pool
 try:
     pool = AsyncConnectionPool(conninfo=CONNECTION_STRING, min_size=MIN_CONNECTIONS, max_size=MAX_CONNECTIONS, open=False)
-except BaseException as e:
+except Exception as e:
     logging.error(str(e))
     logger.warning("I am unable to connect to the database")
 
@@ -82,7 +82,7 @@ async def init_database():
                 await create_cur.execute("""CREATE INDEX IF NOT EXISTS pgroonga_memes_tags_index ON memes USING pgroonga (tags)""")
                 await create_cur.execute("""CREATE INDEX IF NOT EXISTS pgroonga_memes_name_index ON memes USING pgroonga (name)""")
                 await create_conn.commit()
-            except BaseException as e:
+            except Exception as e:
                 logger.error(f"failed to create database tables error: {e}")
                 await create_conn.rollback()
 
@@ -118,7 +118,7 @@ async def add_database_entry(user_id: int,
         VALUES (%s, %s, %s, %s, %s, %s, %s);""", (user_id, telegram_media_id, duration, name, tags, media_type, is_public))
                 await conn.commit()
                 return True
-            except BaseException as error:
+            except Exception as error:
                 logging.error(f"Error inserting meme: {error}")
                 await conn.rollback()
                 return False

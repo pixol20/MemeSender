@@ -232,6 +232,8 @@ async def _generate_inline_list(database_data: list[tuple[str, str, str]]) -> Se
        Returns:
            Inline query results that can be sent to client
     """
+    if database_data is None:
+        return []
     inline_list = []
     for i_meme in database_data:
         if i_meme[2] == "video":
