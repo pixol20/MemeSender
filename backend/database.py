@@ -92,7 +92,11 @@ async def search_for_meme_inline_by_query(query: str):
     async with pool.connection() as conn:
         try:
             async with conn.cursor() as cur:
-                await cur.execute("SELECT name, telegram_media_id, media_type FROM public.memes WHERE name = %s OR %s = ANY(tags);",
+                await cur.execute("""SELECT name, telegram_media_id, media_type, 
+                                    pgroonga_score(tableoid, ctid) AS score
+                                    FROM memes
+                                    WHERE name &@~ %s OR tags &@~ %s
+                                    ORDER BY score DESC""",
                              (query,query))
                 await conn.commit()
                 return await cur.fetchmany(MEMES_IN_INLINE_LIST)
