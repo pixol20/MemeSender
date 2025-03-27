@@ -105,7 +105,7 @@ async def search_for_meme_inline_by_query(query: str):
             logger.error(f"Error while searching for meme {error}")
 
 async def add_database_entry(user_id: int,
-                       telegram_media_id: int,
+                       telegram_media_id: str,
                        name: str, tags: list[str],
                        media_type: str,
                        duration=0,
