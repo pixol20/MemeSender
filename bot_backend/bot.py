@@ -48,7 +48,7 @@ TELEGRAM_MEDIA_ID = "telegram_media_id"
 DURATION = "duration"
 TAGS = "tags"
 
-
+MAX_TEXT_LENGTH = 512
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Hello World")
@@ -132,6 +132,10 @@ async def meme(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 async def name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     processed_user_input = update.message.text.strip().casefold()
+
+    if len(processed_user_input) > MAX_TEXT_LENGTH:
+        await update.message.reply_text("❌ the name is too long")
+
     context.user_data[MEME_NAME] = processed_user_input
     reply_keyboard = [["Yes✅","No❌"]]
     await update.message.reply_text(
@@ -160,6 +164,10 @@ async def decide_use_tags_or_no(update: Update, context: ContextTypes.DEFAULT_TY
 async def handle_tags(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user_input = update.message.text
     processed_user_input = user_input.strip().casefold()
+
+    if len(processed_user_input) > MAX_TEXT_LENGTH:
+        await update.message.reply_text("❌ the tag is too long")
+
     context.user_data[TAGS].append(processed_user_input)
     await update.message.reply_text("✅")
     return HANDLE_TAGS
