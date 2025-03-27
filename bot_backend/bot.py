@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from typing import Final
 
 from dotenv import load_dotenv
@@ -13,7 +14,8 @@ from telegram import (Update,
                       InlineQueryResultCachedPhoto,
                       InlineQueryResultCachedGif,
                       InlineQueryResultCachedVoice,
-                      InlineQueryResultCachedAudio)
+                      InlineQueryResultCachedAudio,
+                      InlineQueryResult)
 
 from telegram.ext import (
     Application,
@@ -67,6 +69,14 @@ def reset_current_upload_data(user_data):
     user_data[DURATION] = None
 
 async def handle_upload(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
+    """
+    Sends user's meme to the database
+    Args:
+        update: Update object from python-telegram-bot
+        context: Context object from python-telegram-bot
+    Returns:
+        Whether operation was successful or not
+    """
     user_data = context.user_data
     user_id = update.message.from_user.id
 
@@ -149,6 +159,7 @@ async def name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 
 async def decide_use_tags_or_no(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """decides whether to use tags or not depending on user input"""
     user_data = context.user_data
     user_data[TAGS] = []
 
@@ -162,6 +173,7 @@ async def decide_use_tags_or_no(update: Update, context: ContextTypes.DEFAULT_TY
 
 
 async def handle_tags(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Retrieves user tags separated by messages"""
     user_input = update.message.text
     processed_user_input = user_input.strip().casefold()
 
@@ -197,6 +209,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 async def command_in_wrong_place(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """sends message when user inputs wrong command"""
     user = update.message.from_user
 
     logger.info("User %s canceled the upload.", user.first_name)
@@ -210,8 +223,13 @@ async def command_in_wrong_place(update: Update, context: ContextTypes.DEFAULT_T
     return ConversationHandler.END
 
 
-async def generate_inline_list(database_data) -> list:
-    """Generate inline entries from database response"""
+async def _generate_inline_list(database_data: list[tuple[str, str, str]]) -> Sequence[InlineQueryResult]:
+    """Generate inline entries from database response
+       Args:
+           database_data: data output from database
+       Returns:
+           Inline query results that can be sent to client
+    """
     inline_list = []
     for i_meme in database_data:
         if i_meme[2] == "video":
@@ -253,7 +271,7 @@ async def inline_query(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
     processed_query = query.strip().casefold()
     db_response = await database.search_for_meme_inline_by_query(processed_query)
-    results = await generate_inline_list(db_response)
+    results = await _generate_inline_list(db_response)
 
     await update.inline_query.answer(results, cache_time=4)
 
