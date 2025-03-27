@@ -145,6 +145,7 @@ async def name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     if len(processed_user_input) > MAX_TEXT_LENGTH:
         await update.message.reply_text("❌ the name is too long")
+        return NAME
 
     context.user_data[MEME_NAME] = processed_user_input
     reply_keyboard = [["Yes✅","No❌"]]
@@ -179,6 +180,7 @@ async def handle_tags(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 
     if len(processed_user_input) > MAX_TEXT_LENGTH:
         await update.message.reply_text("❌ the tag is too long")
+        return HANDLE_TAGS
 
     context.user_data[TAGS].append(processed_user_input)
     await update.message.reply_text("✅")
