@@ -27,7 +27,6 @@ from telegram.ext import (
 
 import logging
 import database
-from database import search_for_meme_inline_by_query
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -48,6 +47,7 @@ MEDIA_TYPE = "media_type"
 TELEGRAM_MEDIA_ID = "telegram_media_id"
 DURATION = "duration"
 TAGS = "tags"
+
 
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -76,7 +76,7 @@ async def handle_upload(update: Update, context: ContextTypes.DEFAULT_TYPE) -> b
 
     await update.message.reply_text("Uploading meme", reply_markup=ReplyKeyboardRemove())
 
-    is_successful = database.add_database_entry(user_id=user_id, telegram_media_id=user_data[TELEGRAM_MEDIA_ID],
+    is_successful = await database.add_database_entry(user_id=user_id, telegram_media_id=user_data[TELEGRAM_MEDIA_ID],
                                                 name=user_data[MEME_NAME], tags=user_data[TAGS],
                                                 media_type=user_data[MEDIA_TYPE], duration=user_data[DURATION],
                                                 is_public=True)
@@ -202,7 +202,7 @@ async def command_in_wrong_place(update: Update, context: ContextTypes.DEFAULT_T
     return ConversationHandler.END
 
 
-def generate_inline_list(database_data) -> list:
+async def generate_inline_list(database_data) -> list:
     """Generate inline entries from database response"""
     inline_list = []
     for i_meme in database_data:
@@ -244,15 +244,20 @@ async def inline_query(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         return
 
     processed_query = query.strip().casefold()
-    results = generate_inline_list(search_for_meme_inline_by_query(processed_query))
+    db_response = await database.search_for_meme_inline_by_query(processed_query)
+    results = await generate_inline_list(db_response)
 
     await update.inline_query.answer(results, cache_time=4)
 
+async def start_db(application: Application):
+    await database.init_database()
+
+async def stop_db(application: Application):
+    await database.close_all_connections()
 
 if __name__ == "__main__":
     logger.info("building")
-    app = Application.builder().token(BOT_TOKEN).build()
-
+    app = Application.builder().token(BOT_TOKEN).post_init(start_db).post_shutdown(stop_db).build()
     logger.info("adding commands")
     app.add_handler(CommandHandler('start', start_command),group=1)
     conv_handler = ConversationHandler(entry_points=[CommandHandler("add", add_command)],
