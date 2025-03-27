@@ -71,7 +71,7 @@ async def init_database():
                                 duration integer,
                                 telegram_media_id text,
                                 name text,
-                                tags text[],
+                                tags text[] DEFAULT '{}'::text[],
                                 media_type media_type,
                                 is_public boolean,
                                 PRIMARY KEY (id)
