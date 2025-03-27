@@ -46,6 +46,10 @@ async def init_database():
     async with pool.connection() as create_conn:
         async with create_conn.cursor() as create_cur:
             try:
+                await create_cur.execute("""CREATE EXTENSION IF NOT EXISTS pgroonga;""")
+                await create_cur.execute("""CREATE INDEX IF NOT EXISTS pgroonga_memes_tags_index ON memes USING pgroonga (tags)""")
+                await create_cur.execute("""CREATE INDEX IF NOT EXISTS pgroonga_memes_name_index ON memes USING pgroonga (name)""")
+                await create_cur.execute("""SET enable_seqscan = off;""")
                 await create_cur.execute("""
                                 DO
                                 $$
