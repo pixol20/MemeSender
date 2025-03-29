@@ -41,7 +41,7 @@ load_dotenv()
 BOT_TOKEN: Final = getenv("BOT_KEY")
 BOT_USERNAME: Final = getenv("BOT_NAME")
 
-MEME, NAME, DECIDE_USE_TAGS_OR_NO, HANDLE_TAGS = range(4)
+MEME, NAME, DECIDE_USE_TAGS_OR_NO, HANDLE_TAGS, DECIDE_PUBLIC_OR_NO = range(5)
 
 # user_data keys
 MEME_NAME = "meme_name"
@@ -49,6 +49,7 @@ MEDIA_TYPE = "media_type"
 TELEGRAM_MEDIA_ID = "telegram_media_id"
 DURATION = "duration"
 TAGS = "tags"
+MEME_PUBLIC = "meme_public"
 
 MAX_TEXT_LENGTH = 512
 
@@ -67,6 +68,7 @@ def reset_current_upload_data(user_data):
     user_data[TAGS] = None
     user_data[MEDIA_TYPE] = None
     user_data[DURATION] = None
+    user_data[MEME_PUBLIC] = None
 
 async def handle_upload(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
     """
@@ -89,7 +91,7 @@ async def handle_upload(update: Update, context: ContextTypes.DEFAULT_TYPE) -> b
     is_successful = await database.add_database_entry(user_id=user_id, telegram_media_id=user_data[TELEGRAM_MEDIA_ID],
                                                 name=user_data[MEME_NAME], tags=user_data[TAGS],
                                                 media_type=user_data[MEDIA_TYPE], duration=user_data[DURATION],
-                                                is_public=True)
+                                                is_public=user_data[MEME_PUBLIC])
 
     if is_successful:
         await update.message.reply_text("Meme uploaded")
@@ -169,8 +171,14 @@ async def decide_use_tags_or_no(update: Update, context: ContextTypes.DEFAULT_TY
                                         reply_markup=ReplyKeyboardRemove())
         return HANDLE_TAGS
     else:
-        await handle_upload(update, context)
-        return ConversationHandler.END
+        reply_keyboard = [["Yes✅", "No❌"]]
+        await update.message.reply_text(
+            "Do you want to make this meme public?",
+            reply_markup=ReplyKeyboardMarkup(
+                reply_keyboard, one_time_keyboard=True, input_field_placeholder="Add tags?"
+            ),
+        )
+        return DECIDE_PUBLIC_OR_NO
 
 
 async def handle_tags(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -192,9 +200,29 @@ async def finish_tags(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 
     await update.message.reply_text(f"Tags collected: {', '.join(tags)}")
 
+    reply_keyboard = [["Yes✅", "No❌"]]
+    await update.message.reply_text(
+        "Do you want to make this meme public?",
+        reply_markup=ReplyKeyboardMarkup(
+            reply_keyboard, one_time_keyboard=True, input_field_placeholder="Add tags?"
+        ),
+    )
+    return DECIDE_PUBLIC_OR_NO
+
+async def decide_public_or_no(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if update.message.text == "Yes✅":
+        await update.message.reply_text("Your meme is public",
+                                        reply_markup=ReplyKeyboardRemove())
+        context.user_data[MEME_PUBLIC] = True
+    else:
+        await update.message.reply_text("Your meme is private",
+                                        reply_markup=ReplyKeyboardRemove())
+        context.user_data[MEME_PUBLIC] = False
+
     await handle_upload(update, context)
 
     return ConversationHandler.END
+
 
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -297,7 +325,9 @@ if __name__ == "__main__":
                                            DECIDE_USE_TAGS_OR_NO: [MessageHandler(filters.Regex("^(Yes✅|No❌)$"),
                                                                                   decide_use_tags_or_no)],
                                            HANDLE_TAGS: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_tags),
-                                                         CommandHandler("finish_tags", finish_tags)]
+                                                         CommandHandler("finish_tags", finish_tags)],
+                                           DECIDE_PUBLIC_OR_NO: [MessageHandler(filters.Regex("^(Yes✅|No❌)$"),
+                                                                                  decide_public_or_no)]
                                        },
                                        fallbacks=[CommandHandler("cancel", cancel),
                                                   MessageHandler(filters.COMMAND, command_in_wrong_place)]

@@ -7,7 +7,7 @@ load_dotenv()
 
 # constants
 MEMES_IN_INLINE_LIST = 20
-MIN_CONNECTIONS = 1
+MIN_CONNECTIONS = 2
 MAX_CONNECTIONS = 20
 
 HOST = getenv("HOST")
@@ -65,26 +65,73 @@ async def init_database():
                                 $$
                                 LANGUAGE plpgsql;
                 """)
+                await create_cur.execute("""CREATE TABLE IF NOT EXISTS public.users
+                                            (
+                                                telegram_id bigint,
+                                                is_banned boolean DEFAULT FALSE,
+                                                saved_collections bigint[] DEFAULT '{}'::bigint[],
+                                                PRIMARY KEY (telegram_id)
+                                            );""")
 
                 await create_cur.execute("""CREATE TABLE IF NOT EXISTS public.memes
-                            (
-                                id bigserial,
-                                telegram_uploader_id bigint,
-                                duration integer,
-                                telegram_media_id text,
-                                name text,
-                                tags text[] DEFAULT '{}'::text[],
-                                media_type media_type,
-                                is_public boolean,
-                                PRIMARY KEY (id)
-                            );
+                                            (
+                                                id bigserial,
+                                                uploader_telegram_id bigint,
+                                                duration integer DEFAULT 0,
+                                                likes bigint DEFAULT 0,
+                                                telegram_media_id text,
+                                                title text,
+                                                tags text[] DEFAULT '{}'::text[],
+                                                media_type media_type,
+                                                is_public boolean DEFAULT FALSE,
+                                                PRIMARY KEY (id),
+                                                CONSTRAINT fkey_users_id FOREIGN KEY (uploader_telegram_id)
+                                                    REFERENCES public.users (telegram_id) MATCH SIMPLE
+                                                    ON UPDATE NO ACTION
+                                                    ON DELETE NO ACTION
+                                                    NOT VALID
+                                            );
                             """)
+                await create_cur.execute("""CREATE TABLE IF NOT EXISTS public.collections
+                                            (
+                                                id bigserial,
+                                                creator_telegram_id bigint,
+                                                meme_ids bigint[],
+                                                likes bigint DEFAULT 0,
+                                                users_ammount bigint DEFAULT 1,
+                                                title text,
+                                                tags text[],
+                                                is_public boolean,
+                                                PRIMARY KEY (id),
+                                                CONSTRAINT fkey_users_id FOREIGN KEY (creator_telegram_id)
+                                                    REFERENCES public.users (telegram_id) MATCH SIMPLE
+                                                    ON UPDATE NO ACTION
+                                                    ON DELETE NO ACTION
+                                                    NOT VALID
+                                            );""")
+
+                await create_cur.execute("""CREATE INDEX IF NOT EXISTS pgroonga_collections_title_index ON collections USING pgroonga (title)""")
+                await create_cur.execute("""CREATE INDEX IF NOT EXISTS pgroonga_collections_tags_index ON collections USING pgroonga (tags)""")
                 await create_cur.execute("""CREATE INDEX IF NOT EXISTS pgroonga_memes_tags_index ON memes USING pgroonga (tags)""")
-                await create_cur.execute("""CREATE INDEX IF NOT EXISTS pgroonga_memes_name_index ON memes USING pgroonga (name)""")
+                await create_cur.execute("""CREATE INDEX IF NOT EXISTS pgroonga_memes_title_index ON memes USING pgroonga (title)""")
                 await create_conn.commit()
             except Exception as e:
                 logger.error(f"failed to create database tables error: {e}")
                 await create_conn.rollback()
+
+
+async def add_user(user_id):
+    async with pool.connection() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute("(SELECT 1 FROM public.users WHERE telegram_id = %s LIMIT 1);", (user_id,))
+            exists = await cur.fetchone()
+            if not exists:
+                # Insert the new user
+                await cur.execute(
+                    "INSERT INTO users (telegram_id, is_banned) VALUES (%s, FALSE);",
+                    (user_id, )
+                )
+            await conn.commit()
 
 
 
@@ -92,10 +139,10 @@ async def search_for_meme_inline_by_query(query: str):
     async with pool.connection() as conn:
         try:
             async with conn.cursor() as cur:
-                await cur.execute("""SELECT name, telegram_media_id, media_type, 
+                await cur.execute("""SELECT title, telegram_media_id, media_type, 
                                     pgroonga_score(tableoid, ctid) AS score
                                     FROM memes
-                                    WHERE name &@~ %s OR tags &@~ %s
+                                    WHERE title &@~ %s OR tags &@~ %s
                                     ORDER BY score DESC""",
                              (query,query))
                 await conn.commit()
@@ -113,8 +160,9 @@ async def add_database_entry(user_id: int,
     async with pool.connection() as conn:
         async with conn.cursor() as cur:
             try:
-                await cur.execute("""INSERT INTO public.memes(telegram_uploader_id, telegram_media_id, 
-                duration, name, tags, media_type, is_public)
+                await add_user(user_id=user_id)
+                await cur.execute("""INSERT INTO public.memes(uploader_telegram_id, telegram_media_id, 
+                duration, title, tags, media_type, is_public)
         VALUES (%s, %s, %s, %s, %s, %s, %s);""", (user_id, telegram_media_id, duration, name, tags, media_type, is_public))
                 await conn.commit()
                 return True
@@ -122,4 +170,3 @@ async def add_database_entry(user_id: int,
                 logging.error(f"Error inserting meme: {error}")
                 await conn.rollback()
                 return False
-
