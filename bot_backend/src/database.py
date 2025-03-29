@@ -113,7 +113,7 @@ async def init_database():
                                             USING pgroonga (tags)
                                             WITH (normalizers='NormalizerNFKC150("remove_symbol", true)');""")
 
-                await create_cur.execute("""CREATE INDEX IF NOT EXISTS pgroonga_memes_title_index ON memes
+                await create_cur.execute("""CREATE INDEX IF NOT EXISTS pgroonga_memes_titles_index ON memes
                                             USING pgroonga (title)
                                             WITH (normalizers='NormalizerNFKC150("remove_symbol", true)');""")
 
@@ -121,7 +121,7 @@ async def init_database():
                                             USING pgroonga (tags)
                                             WITH (normalizers='NormalizerNFKC150("remove_symbol", true)');""")
 
-                await create_cur.execute("""CREATE INDEX IF NOT EXISTS pgroonga_collections_title_index ON collections
+                await create_cur.execute("""CREATE INDEX IF NOT EXISTS pgroonga_collections_titles_index ON collections
                                             USING pgroonga (title)
                                             WITH (normalizers='NormalizerNFKC150("remove_symbol", true)');""")
 
@@ -155,7 +155,7 @@ async def search_for_meme_inline_by_query(query: str, user_id: int):
                 await cur.execute("""SELECT title, telegram_media_id, media_type, 
                                      pgroonga_score(tableoid, ctid) AS score
                                      FROM memes
-                                     WHERE title &@~ pgroonga_condition(
+                                     WHERE (title &@~ pgroonga_condition(
                                                              %s,
                                                              ARRAY[5],
                                                              index_name => 'pgroonga_memes_titles_index',
@@ -166,9 +166,10 @@ async def search_for_meme_inline_by_query(query: str, user_id: int):
                                                         ARRAY[1],
                                                         index_name => 'pgroonga_memes_tags_index',
                                                         fuzzy_max_distance_ratio => 0.34
-                                                      )
-                                    ORDER BY score DESC;""",
-                             (query,query))
+                                                      )) 
+									 AND (is_public = TRUE OR uploader_telegram_id = %s)
+                                     ORDER BY score DESC;""",
+                             (query,query,user_id))
                 await conn.commit()
                 return await cur.fetchmany(MEMES_IN_INLINE_LIST)
         except Exception as error:
