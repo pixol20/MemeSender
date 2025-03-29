@@ -175,7 +175,7 @@ async def decide_use_tags_or_no(update: Update, context: ContextTypes.DEFAULT_TY
         await update.message.reply_text(
             "Do you want to make this meme public?",
             reply_markup=ReplyKeyboardMarkup(
-                reply_keyboard, one_time_keyboard=True, input_field_placeholder="Add tags?"
+                reply_keyboard, one_time_keyboard=True, input_field_placeholder="Make meme public?"
             ),
         )
         return DECIDE_PUBLIC_OR_NO
