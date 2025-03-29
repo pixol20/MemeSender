@@ -143,7 +143,7 @@ async def meme(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     return NAME
 
 async def name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    processed_user_input = update.message.text.strip().casefold()
+    processed_user_input = update.message.text.strip()
 
     if len(processed_user_input) > MAX_TEXT_LENGTH:
         await update.message.reply_text("❌ the name is too long")
@@ -184,7 +184,7 @@ async def decide_use_tags_or_no(update: Update, context: ContextTypes.DEFAULT_TY
 async def handle_tags(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Retrieves user tags separated by messages"""
     user_input = update.message.text
-    processed_user_input = user_input.strip().casefold()
+    processed_user_input = user_input.strip()
 
     if len(processed_user_input) > MAX_TEXT_LENGTH:
         await update.message.reply_text("❌ the tag is too long")
@@ -298,11 +298,12 @@ async def _generate_inline_list(database_data: list[tuple[str, str, str]]) -> Se
 async def inline_query(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.inline_query.query
 
+    user_id = update.inline_query.from_user.id
     if not query:  # empty query should not be handled
         return
 
-    processed_query = query.strip().casefold()
-    db_response = await database.search_for_meme_inline_by_query(processed_query)
+    processed_query = query.strip()
+    db_response = await database.search_for_meme_inline_by_query(processed_query, user_id)
     results = await _generate_inline_list(db_response)
 
     await update.inline_query.answer(results, cache_time=4)

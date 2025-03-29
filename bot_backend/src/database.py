@@ -47,7 +47,6 @@ async def init_database():
         async with create_conn.cursor() as create_cur:
             try:
                 await create_cur.execute("""CREATE EXTENSION IF NOT EXISTS pgroonga;""")
-                await create_cur.execute("""SET enable_seqscan = off;""")
                 await create_cur.execute("""
                                 DO
                                 $$
@@ -110,10 +109,24 @@ async def init_database():
                                                     NOT VALID
                                             );""")
 
-                await create_cur.execute("""CREATE INDEX IF NOT EXISTS pgroonga_collections_title_index ON collections USING pgroonga (title)""")
-                await create_cur.execute("""CREATE INDEX IF NOT EXISTS pgroonga_collections_tags_index ON collections USING pgroonga (tags)""")
-                await create_cur.execute("""CREATE INDEX IF NOT EXISTS pgroonga_memes_tags_index ON memes USING pgroonga (tags)""")
-                await create_cur.execute("""CREATE INDEX IF NOT EXISTS pgroonga_memes_title_index ON memes USING pgroonga (title)""")
+                await create_cur.execute("""CREATE INDEX IF NOT EXISTS pgroonga_memes_tags_index ON memes
+                                            USING pgroonga (tags)
+                                            WITH (normalizers='NormalizerNFKC150("remove_symbol", true)');""")
+
+                await create_cur.execute("""CREATE INDEX IF NOT EXISTS pgroonga_memes_title_index ON memes
+                                            USING pgroonga (title)
+                                            WITH (normalizers='NormalizerNFKC150("remove_symbol", true)');""")
+
+                await create_cur.execute("""CREATE INDEX IF NOT EXISTS pgroonga_collections_tags_index ON collections
+                                            USING pgroonga (tags)
+                                            WITH (normalizers='NormalizerNFKC150("remove_symbol", true)');""")
+
+                await create_cur.execute("""CREATE INDEX IF NOT EXISTS pgroonga_collections_title_index ON collections
+                                            USING pgroonga (title)
+                                            WITH (normalizers='NormalizerNFKC150("remove_symbol", true)');""")
+
+
+                await create_cur.execute("""SET enable_seqscan = off;""")
                 await create_conn.commit()
             except Exception as e:
                 logger.error(f"failed to create database tables error: {e}")
@@ -135,15 +148,26 @@ async def add_user(user_id):
 
 
 
-async def search_for_meme_inline_by_query(query: str):
+async def search_for_meme_inline_by_query(query: str, user_id: int):
     async with pool.connection() as conn:
         try:
             async with conn.cursor() as cur:
                 await cur.execute("""SELECT title, telegram_media_id, media_type, 
-                                    pgroonga_score(tableoid, ctid) AS score
-                                    FROM memes
-                                    WHERE title &@~ %s OR tags &@~ %s
-                                    ORDER BY score DESC""",
+                                     pgroonga_score(tableoid, ctid) AS score
+                                     FROM memes
+                                     WHERE title &@~ pgroonga_condition(
+                                                             %s,
+                                                             ARRAY[5],
+                                                             index_name => 'pgroonga_memes_titles_index',
+                                                             fuzzy_max_distance_ratio => 0.34
+                                                           )
+                                    OR tags &@~ pgroonga_condition(
+                                                        %s,
+                                                        ARRAY[1],
+                                                        index_name => 'pgroonga_memes_tags_index',
+                                                        fuzzy_max_distance_ratio => 0.34
+                                                      )
+                                    ORDER BY score DESC;""",
                              (query,query))
                 await conn.commit()
                 return await cur.fetchmany(MEMES_IN_INLINE_LIST)
