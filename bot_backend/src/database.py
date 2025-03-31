@@ -155,15 +155,14 @@ async def search_for_meme_inline_by_query(query: str, user_id: int):
                 await cur.execute("""SELECT title, telegram_media_id, media_type, 
                                      pgroonga_score(tableoid, ctid) AS score
                                      FROM memes
-                                     WHERE (title &@~ pgroonga_condition(
+                                     WHERE (title &@ pgroonga_condition(
                                                              %s,
                                                              ARRAY[5],
                                                              index_name => 'pgroonga_memes_titles_index',
                                                              fuzzy_max_distance_ratio => 0.34
                                                            )
-                                    OR tags &@~ pgroonga_condition(
+                                    OR tags &@ pgroonga_condition(
                                                         %s,
-                                                        ARRAY[1],
                                                         index_name => 'pgroonga_memes_tags_index',
                                                         fuzzy_max_distance_ratio => 0.34
                                                       )) 
