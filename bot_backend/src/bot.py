@@ -30,6 +30,8 @@ from telegram.ext import (
 import logging
 import database
 
+import sqlalchemy_db
+
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
@@ -41,7 +43,7 @@ load_dotenv()
 BOT_TOKEN: Final = getenv("BOT_KEY")
 BOT_USERNAME: Final = getenv("BOT_NAME")
 
-MEME, NAME, DECIDE_USE_TAGS_OR_NO, HANDLE_TAGS = range(4)
+MEME, NAME, DECIDE_USE_TAGS_OR_NO, HANDLE_TAGS, DECIDE_PUBLIC_OR_NO = range(5)
 
 # user_data keys
 MEME_NAME = "meme_name"
@@ -49,6 +51,7 @@ MEDIA_TYPE = "media_type"
 TELEGRAM_MEDIA_ID = "telegram_media_id"
 DURATION = "duration"
 TAGS = "tags"
+MEME_PUBLIC = "meme_public"
 
 MAX_TEXT_LENGTH = 512
 
@@ -67,6 +70,7 @@ def reset_current_upload_data(user_data):
     user_data[TAGS] = None
     user_data[MEDIA_TYPE] = None
     user_data[DURATION] = None
+    user_data[MEME_PUBLIC] = None
 
 async def handle_upload(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
     """
@@ -86,10 +90,10 @@ async def handle_upload(update: Update, context: ContextTypes.DEFAULT_TYPE) -> b
 
     await update.message.reply_text("Uploading meme", reply_markup=ReplyKeyboardRemove())
 
-    is_successful = await database.add_database_entry(user_id=user_id, telegram_media_id=user_data[TELEGRAM_MEDIA_ID],
+    is_successful = await sqlalchemy_db.add_database_entry(user_id=user_id, telegram_media_id=user_data[TELEGRAM_MEDIA_ID],
                                                 name=user_data[MEME_NAME], tags=user_data[TAGS],
                                                 media_type=user_data[MEDIA_TYPE], duration=user_data[DURATION],
-                                                is_public=True)
+                                                is_public=user_data[MEME_PUBLIC])
 
     if is_successful:
         await update.message.reply_text("Meme uploaded")
@@ -141,7 +145,7 @@ async def meme(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     return NAME
 
 async def name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    processed_user_input = update.message.text.strip().casefold()
+    processed_user_input = update.message.text.strip()
 
     if len(processed_user_input) > MAX_TEXT_LENGTH:
         await update.message.reply_text("❌ the name is too long")
@@ -169,14 +173,20 @@ async def decide_use_tags_or_no(update: Update, context: ContextTypes.DEFAULT_TY
                                         reply_markup=ReplyKeyboardRemove())
         return HANDLE_TAGS
     else:
-        await handle_upload(update, context)
-        return ConversationHandler.END
+        reply_keyboard = [["Yes✅", "No❌"]]
+        await update.message.reply_text(
+            "Do you want to make this meme public?",
+            reply_markup=ReplyKeyboardMarkup(
+                reply_keyboard, one_time_keyboard=True, input_field_placeholder="Make meme public?"
+            ),
+        )
+        return DECIDE_PUBLIC_OR_NO
 
 
 async def handle_tags(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Retrieves user tags separated by messages"""
     user_input = update.message.text
-    processed_user_input = user_input.strip().casefold()
+    processed_user_input = user_input.strip()
 
     if len(processed_user_input) > MAX_TEXT_LENGTH:
         await update.message.reply_text("❌ the tag is too long")
@@ -192,9 +202,29 @@ async def finish_tags(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 
     await update.message.reply_text(f"Tags collected: {', '.join(tags)}")
 
+    reply_keyboard = [["Yes✅", "No❌"]]
+    await update.message.reply_text(
+        "Do you want to make this meme public?",
+        reply_markup=ReplyKeyboardMarkup(
+            reply_keyboard, one_time_keyboard=True, input_field_placeholder="Add tags?"
+        ),
+    )
+    return DECIDE_PUBLIC_OR_NO
+
+async def decide_public_or_no(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if update.message.text == "Yes✅":
+        await update.message.reply_text("Your meme is public",
+                                        reply_markup=ReplyKeyboardRemove())
+        context.user_data[MEME_PUBLIC] = True
+    else:
+        await update.message.reply_text("Your meme is private",
+                                        reply_markup=ReplyKeyboardRemove())
+        context.user_data[MEME_PUBLIC] = False
+
     await handle_upload(update, context)
 
     return ConversationHandler.END
+
 
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -270,20 +300,21 @@ async def _generate_inline_list(database_data: list[tuple[str, str, str]]) -> Se
 async def inline_query(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.inline_query.query
 
+    user_id = update.inline_query.from_user.id
     if not query:  # empty query should not be handled
         return
 
-    processed_query = query.strip().casefold()
-    db_response = await database.search_for_meme_inline_by_query(processed_query)
+    processed_query = query.strip()
+    db_response = await sqlalchemy_db.search_for_meme_inline_by_query(processed_query, user_id)
     results = await _generate_inline_list(db_response)
 
     await update.inline_query.answer(results, cache_time=4)
 
 async def start_db(application: Application):
-    await database.init_database()
+    await sqlalchemy_db.init_database()
 
 async def stop_db(application: Application):
-    await database.close_all_connections()
+    await sqlalchemy_db.close_all_connections()
 
 if __name__ == "__main__":
     logger.info("building")
@@ -297,7 +328,9 @@ if __name__ == "__main__":
                                            DECIDE_USE_TAGS_OR_NO: [MessageHandler(filters.Regex("^(Yes✅|No❌)$"),
                                                                                   decide_use_tags_or_no)],
                                            HANDLE_TAGS: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_tags),
-                                                         CommandHandler("finish_tags", finish_tags)]
+                                                         CommandHandler("finish_tags", finish_tags)],
+                                           DECIDE_PUBLIC_OR_NO: [MessageHandler(filters.Regex("^(Yes✅|No❌)$"),
+                                                                                  decide_public_or_no)]
                                        },
                                        fallbacks=[CommandHandler("cancel", cancel),
                                                   MessageHandler(filters.COMMAND, command_in_wrong_place)]
