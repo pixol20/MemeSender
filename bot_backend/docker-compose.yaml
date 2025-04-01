@@ -11,12 +11,6 @@ services:
       POSTGRES_DB: Memes
     volumes:
       - postgres-data-test:/var/lib/postgresql/data
-  bot:
-    build: .
-    image: bot_image
-    restart: always
-    depends_on:
-      - database
 volumes:
   postgres-data-test:
     driver: local
