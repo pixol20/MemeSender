@@ -30,6 +30,8 @@ from telegram.ext import (
 import logging
 import database
 
+import sqlalchemy_db
+
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
@@ -88,7 +90,7 @@ async def handle_upload(update: Update, context: ContextTypes.DEFAULT_TYPE) -> b
 
     await update.message.reply_text("Uploading meme", reply_markup=ReplyKeyboardRemove())
 
-    is_successful = await database.add_database_entry(user_id=user_id, telegram_media_id=user_data[TELEGRAM_MEDIA_ID],
+    is_successful = await sqlalchemy_db.add_database_entry(user_id=user_id, telegram_media_id=user_data[TELEGRAM_MEDIA_ID],
                                                 name=user_data[MEME_NAME], tags=user_data[TAGS],
                                                 media_type=user_data[MEDIA_TYPE], duration=user_data[DURATION],
                                                 is_public=user_data[MEME_PUBLIC])
@@ -303,16 +305,16 @@ async def inline_query(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         return
 
     processed_query = query.strip()
-    db_response = await database.search_for_meme_inline_by_query(processed_query, user_id)
+    db_response = await sqlalchemy_db.search_for_meme_inline_by_query(processed_query, user_id)
     results = await _generate_inline_list(db_response)
 
     await update.inline_query.answer(results, cache_time=4)
 
 async def start_db(application: Application):
-    await database.init_database()
+    await sqlalchemy_db.init_database()
 
 async def stop_db(application: Application):
-    await database.close_all_connections()
+    await sqlalchemy_db.close_all_connections()
 
 if __name__ == "__main__":
     logger.info("building")
