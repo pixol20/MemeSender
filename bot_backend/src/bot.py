@@ -28,8 +28,6 @@ from telegram.ext import (
 )
 
 import logging
-import database
-
 import sqlalchemy_db
 
 logging.basicConfig(
