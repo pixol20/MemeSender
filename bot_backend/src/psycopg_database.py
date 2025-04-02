@@ -1,3 +1,7 @@
+# OUTDATED
+
+
+
 from os import getenv
 import logging
 from psycopg_pool import AsyncConnectionPool
