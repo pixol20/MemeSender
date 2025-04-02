@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
 )
-
+from sqlalchemy.exc import IntegrityError
 from models import User, Base, Meme
 
 # Load environment variables
@@ -48,22 +48,25 @@ async def init_database() -> None:
     # Create database tables
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await conn.execute(text("""CREATE EXTENSION IF NOT EXISTS pgroonga;"""))
 
-    # Initialize the async session maker.
-    # Setting expire_on_commit=False can help to avoid issues with accessing objects after commit.
+        await conn.execute(text("""CREATE INDEX IF NOT EXISTS pgroonga_memes_tags_index ON memes
+                                            USING pgroonga (tags)
+                                            WITH (normalizers='NormalizerNFKC150("remove_symbol", true)');"""))
+
+        await conn.execute(text("""CREATE INDEX IF NOT EXISTS pgroonga_memes_titles_index ON memes
+                                            USING pgroonga (title)
+                                            WITH (normalizers='NormalizerNFKC150("remove_symbol", true)');"""))
+
+        await conn.execute(text("""CREATE INDEX IF NOT EXISTS pgroonga_collections_tags_index ON collections
+                                            USING pgroonga (tags)
+                                            WITH (normalizers='NormalizerNFKC150("remove_symbol", true)');"""))
+
+        await conn.execute(text("""CREATE INDEX IF NOT EXISTS pgroonga_collections_titles_index ON collections
+                                            USING pgroonga (title)
+                                            WITH (normalizers='NormalizerNFKC150("remove_symbol", true)');"""))
     session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
 
-
-async def get_session() -> AsyncGenerator[AsyncSession, None]:
-    """
-    Provide a session that can be used as an async context manager.
-
-    Example usage:
-        async with get_session() as session:
-            # perform database operations with session
-    """
-    async with session_maker() as session:
-        yield session
 
 
 async def get_user(user_id: int, session: AsyncSession) -> Optional[User]:
@@ -75,7 +78,7 @@ async def get_user(user_id: int, session: AsyncSession) -> Optional[User]:
     return result.scalar_one_or_none()
 
 
-async def add_or_get_user(user_id: int, session: AsyncSession) -> Optional[User]:
+async def _add_or_get_user(user_id: int, session: AsyncSession) -> Optional[User]:
     """
     Retrieve the user with the given user_id. If not found, create and return a new user.
     """
@@ -83,14 +86,15 @@ async def add_or_get_user(user_id: int, session: AsyncSession) -> Optional[User]
         logger.error("User ID cannot be None")
         return None
 
-    user = await get_user(user_id, session)
-    if user:
-        return user
-
     new_user = User(telegram_id=user_id)
     session.add(new_user)
-    await session.commit()
-    return new_user
+    try:
+        await session.commit()
+        return new_user
+    except IntegrityError:
+        await session.rollback()  # Rollback the failed transaction
+        # If insertion fails, retrieve the user
+        return await get_user(user_id, session)
 
 
 async def add_database_entry(
@@ -102,31 +106,24 @@ async def add_database_entry(
         duration: int,
         is_public: bool,
 ) -> bool:
-    """
-    Add a new Meme entry to the database linked to the specified user.
-
-    Returns:
-        True if the entry was successfully added, False otherwise.
-    """
     try:
         async with session_maker() as session:
-            # Retrieve or create the user
-            user = await add_or_get_user(user_id=user_id, session=session)
-            if not user:
-                logger.error("Invalid user")
-                return False
+            async with session.begin():
+                user = await _add_or_get_user(user_id=user_id, session=session)
+                if not user:
+                    logger.error("Invalid user")
+                    return False
 
-            new_meme = Meme(
-                uploader_telegram_id=user_id,
-                telegram_media_id=telegram_media_id,
-                duration=duration,
-                title=name,
-                tags=tags,
-                media_type=media_type,
-                is_public=is_public,
-            )
-            session.add(new_meme)
-            await session.commit()
+                new_meme = Meme(
+                    uploader_telegram_id=user_id,
+                    telegram_media_id=telegram_media_id,
+                    duration=duration,
+                    title=name,
+                    tags=tags,
+                    media_type=media_type,
+                    is_public=is_public,
+                )
+                session.add(new_meme)
         return True
 
     except Exception as e:
@@ -143,8 +140,7 @@ async def search_for_meme_inline_by_query(query: str, user_id: int):
         OR_query = await generate_OR_query(query)
 
         search_query = text("""
-            SELECT title, telegram_media_id, media_type, 
-                   pgroonga_score(tableoid, ctid) AS score
+            SELECT title, telegram_media_id, media_type
             FROM memes
             WHERE (
                 title &@ pgroonga_condition(
@@ -171,14 +167,17 @@ async def search_for_meme_inline_by_query(query: str, user_id: int):
                 )
             )
             AND (is_public = TRUE OR uploader_telegram_id = :user_id)
-            ORDER BY score DESC;
+            ORDER BY pgroonga_score(tableoid, ctid) DESC;
         """)
-        db_response =  await session.execute(search_query, {'query': query, 'OR_query': OR_query, 'user_id': user_id})
-        memes = db_response.scalars().fetchmany(MEMES_IN_INLINE_LIST)
 
-        for i in memes:
-            print(i)
-        return memes
+        result = await session.execute(
+            search_query,
+            {'query': query, 'OR_query': OR_query, 'user_id': user_id}
+        )
+
+        # Fetch all rows as a list of tuples
+        memes_list = result.fetchmany(MEMES_IN_INLINE_LIST)
+        return memes_list
 
 
 async def close_all_connections():

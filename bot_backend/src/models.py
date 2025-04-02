@@ -45,6 +45,9 @@ class Meme(Base):
     media_type: Mapped[MediaType] = mapped_column(Enum(MediaType, values_callable=lambda obj: [e.value for e in obj]))
     is_public: Mapped[bool]
 
+    def __repr__(self):
+        return f"Meme(title: {self.title}, creator: {self.creator}), public: {self.is_public}"
+
 
 class Collection(Base):
     __tablename__ = "collections"
