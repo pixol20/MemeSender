@@ -6,11 +6,19 @@ services:
     command: ["postgres", "-c", "enable_seqscan=off"]
     restart: always
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: Memes
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=Memes
     volumes:
       - postgres-data-test:/var/lib/postgresql/data
+  bot:
+    build: .
+    image: bot_image
+    restart: always
+    depends_on:
+      - database
+    environment:
+      - HOST=database
 volumes:
   postgres-data-test:
     driver: local

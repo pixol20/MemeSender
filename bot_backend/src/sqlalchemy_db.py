@@ -18,7 +18,7 @@ from models import User, Base, Meme
 load_dotenv()
 
 # Database configuration from environment variables
-HOST = getenv("HOST")
+HOST = getenv("HOST", "localhost")
 DBNAME = getenv("DBNAME")
 USER = getenv("DBUSER")
 PASSWORD = getenv("PASSWORD")
