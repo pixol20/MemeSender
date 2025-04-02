@@ -28,7 +28,7 @@ from telegram.ext import (
 )
 
 import logging
-import sqlalchemy_db
+import database
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -54,7 +54,12 @@ MEME_PUBLIC = "meme_public"
 MAX_TEXT_LENGTH = 512
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Hello World")
+    user_id = update.message.from_user.id
+    success = await sqlalchemy_db.add_user_to_database(user_id)
+    if success:
+        await update.message.reply_text("Hello World")
+    else:
+        await update.message.reply_text("It seems that something failed. Please report this to the developer")
 
 async def add_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Prompts user to send meme"""

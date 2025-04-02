@@ -1,212 +1,165 @@
-from os import getenv
 import logging
-from psycopg_pool import AsyncConnectionPool
 from dotenv import load_dotenv
+from os import getenv
+from typing import Optional
 
+from sqlalchemy import select, text
+from sqlalchemy.orm import close_all_sessions
+from sqlalchemy.ext.asyncio import (
+    create_async_engine,
+    async_sessionmaker,
+    AsyncEngine,
+    AsyncSession,
+)
+from sqlalchemy.exc import IntegrityError
+from models import User, Base, Meme
+
+# Load environment variables
 load_dotenv()
 
-# constants
-MEMES_IN_INLINE_LIST = 20
-MIN_CONNECTIONS = 2
-MAX_CONNECTIONS = 20
-
-HOST = getenv("HOST")
+# Database configuration from environment variables
+HOST = getenv("HOST", "localhost")
 DBNAME = getenv("DBNAME")
 USER = getenv("DBUSER")
 PASSWORD = getenv("PASSWORD")
 PORT = getenv("PORT")
-
-CONNECTION_STRING = f"host = {HOST} port = {PORT} dbname = {DBNAME} user = {USER} password = {PASSWORD}"
-
-logger = logging.getLogger("psycopg.pool")
-logger.setLevel(logging.INFO)
-
-pool = None
-
-# create connection pool
-try:
-    pool = AsyncConnectionPool(conninfo=CONNECTION_STRING, min_size=MIN_CONNECTIONS, max_size=MAX_CONNECTIONS, open=False)
-except Exception as e:
-    logging.error(str(e))
-    logger.warning("I am unable to connect to the database")
-
-async def open_pool():
-    await pool.open()
-    await pool.wait()
-    logger.info("pool ready")
-
-async def close_all_connections():
-    await pool.close()
+MEMES_IN_INLINE_LIST = 20
 
 
-async def init_database():
-    await open_pool()
+logger = logging.getLogger(__name__)
+
+# Global variables for engine and session maker
+engine: Optional[AsyncEngine] = None
+session_maker: Optional[async_sessionmaker[AsyncSession]] = None
+
+
+async def init_database() -> None:
+    """
+    Initialize the asynchronous engine and create all tables.
+    """
+    global engine, session_maker
+
+    db_url = f"postgresql+psycopg://{USER}:{PASSWORD}@{HOST}:{PORT}/{DBNAME}"
+    engine = create_async_engine(db_url)
+    if not engine:
+        logger.error("Failed to create engine")
+        return
 
     # Create database tables
-    async with pool.connection() as create_conn:
-        async with create_conn.cursor() as create_cur:
-            try:
-                await create_cur.execute("""CREATE EXTENSION IF NOT EXISTS pgroonga;""")
-                await create_cur.execute("""
-                                DO
-                                $$
-                                BEGIN
-                                    IF NOT EXISTS (
-                                        SELECT 1
-                                        FROM pg_type typ
-                                        JOIN pg_namespace nsp ON nsp.oid = typ.typnamespace
-                                        WHERE nsp.nspname = current_schema()
-                                          AND typ.typname = 'media_type'
-                                    ) THEN
-                                        CREATE TYPE public.media_type AS ENUM ('audio', 'gif', 'photo', 'video', 'voice');
-                                    END IF;
-                                END;
-                                $$
-                                LANGUAGE plpgsql;
-                """)
-                await create_cur.execute("""CREATE TABLE IF NOT EXISTS public.users
-                                            (
-                                                telegram_id bigint,
-                                                is_banned boolean DEFAULT FALSE,
-                                                saved_collections bigint[] DEFAULT '{}'::bigint[],
-                                                PRIMARY KEY (telegram_id)
-                                            );""")
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+        await conn.execute(text("""CREATE EXTENSION IF NOT EXISTS pgroonga;"""))
 
-                await create_cur.execute("""CREATE TABLE IF NOT EXISTS public.memes
-                                            (
-                                                id bigserial,
-                                                uploader_telegram_id bigint,
-                                                duration integer DEFAULT 0,
-                                                likes bigint DEFAULT 0,
-                                                telegram_media_id text,
-                                                title text,
-                                                tags text[] DEFAULT '{}'::text[],
-                                                media_type media_type,
-                                                is_public boolean DEFAULT FALSE,
-                                                PRIMARY KEY (id),
-                                                CONSTRAINT fkey_users_id FOREIGN KEY (uploader_telegram_id)
-                                                    REFERENCES public.users (telegram_id) MATCH SIMPLE
-                                                    ON UPDATE NO ACTION
-                                                    ON DELETE NO ACTION
-                                                    NOT VALID
-                                            );
-                            """)
-                await create_cur.execute("""CREATE TABLE IF NOT EXISTS public.collections
-                                            (
-                                                id bigserial,
-                                                creator_telegram_id bigint,
-                                                meme_ids bigint[],
-                                                likes bigint DEFAULT 0,
-                                                users_ammount bigint DEFAULT 1,
-                                                title text,
-                                                tags text[],
-                                                is_public boolean,
-                                                PRIMARY KEY (id),
-                                                CONSTRAINT fkey_users_id FOREIGN KEY (creator_telegram_id)
-                                                    REFERENCES public.users (telegram_id) MATCH SIMPLE
-                                                    ON UPDATE NO ACTION
-                                                    ON DELETE NO ACTION
-                                                    NOT VALID
-                                            );""")
-
-                await create_cur.execute("""CREATE INDEX IF NOT EXISTS pgroonga_memes_tags_index ON memes
+        await conn.execute(text("""CREATE INDEX IF NOT EXISTS pgroonga_memes_tags_index ON memes
                                             USING pgroonga (tags)
-                                            WITH (normalizers='NormalizerNFKC150("remove_symbol", true)');""")
+                                            WITH (normalizers='NormalizerNFKC150("remove_symbol", true)');"""))
 
-                await create_cur.execute("""CREATE INDEX IF NOT EXISTS pgroonga_memes_titles_index ON memes
+        await conn.execute(text("""CREATE INDEX IF NOT EXISTS pgroonga_memes_titles_index ON memes
                                             USING pgroonga (title)
-                                            WITH (normalizers='NormalizerNFKC150("remove_symbol", true)');""")
+                                            WITH (normalizers='NormalizerNFKC150("remove_symbol", true)');"""))
 
-                await create_cur.execute("""CREATE INDEX IF NOT EXISTS pgroonga_collections_tags_index ON collections
+        await conn.execute(text("""CREATE INDEX IF NOT EXISTS pgroonga_collections_tags_index ON collections
                                             USING pgroonga (tags)
-                                            WITH (normalizers='NormalizerNFKC150("remove_symbol", true)');""")
+                                            WITH (normalizers='NormalizerNFKC150("remove_symbol", true)');"""))
 
-                await create_cur.execute("""CREATE INDEX IF NOT EXISTS pgroonga_collections_titles_index ON collections
+        await conn.execute(text("""CREATE INDEX IF NOT EXISTS pgroonga_collections_titles_index ON collections
                                             USING pgroonga (title)
-                                            WITH (normalizers='NormalizerNFKC150("remove_symbol", true)');""")
+                                            WITH (normalizers='NormalizerNFKC150("remove_symbol", true)');"""))
+    session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
 
 
-                await create_cur.execute("""SET enable_seqscan = off;""")
-                await create_conn.commit()
-            except Exception as e:
-                logger.error(f"failed to create database tables error: {e}")
-                await create_conn.rollback()
+
+async def add_user_to_database(telegram_id: int) -> bool:
+    try:
+        async with session_maker() as session:
+            async with session.begin():
+                new_user = User(telegram_id = telegram_id)
+                session.add(new_user)
+                return True
+    except Exception as e:
+        logger.error(f"Error while adding user to database: {e}")
+        return False
 
 
-async def add_user(user_id):
-    async with pool.connection() as conn:
-        async with conn.cursor() as cur:
-            await cur.execute("(SELECT 1 FROM public.users WHERE telegram_id = %s LIMIT 1);", (user_id,))
-            exists = await cur.fetchone()
-            if not exists:
-                # Insert the new user
-                await cur.execute(
-                    "INSERT INTO users (telegram_id, is_banned) VALUES (%s, FALSE);",
-                    (user_id, )
+
+async def add_database_entry(
+        user_id: int,
+        telegram_media_id: str,
+        name: str,
+        tags: list[str],
+        media_type: str,
+        duration: int,
+        is_public: bool,
+) -> bool:
+    try:
+        async with session_maker() as session:
+            async with session.begin():
+                new_meme = Meme(
+                    uploader_telegram_id=user_id,
+                    telegram_media_id=telegram_media_id,
+                    duration=duration,
+                    title=name,
+                    tags=tags,
+                    media_type=media_type,
+                    is_public=is_public,
                 )
-            await conn.commit()
+                session.add(new_meme)
+        return True
+
+    except Exception as e:
+        logger.error(f"Error while adding meme to database: {e}")
+        return False
 
 
 async def generate_OR_query(query: str) -> str:
     return " OR ".join(query.split())
 
+
 async def search_for_meme_inline_by_query(query: str, user_id: int):
-    async with pool.connection() as conn:
-        try:
-            async with conn.cursor() as cur:
+    async with session_maker() as session:
+        OR_query = await generate_OR_query(query)
 
-                OR_query = await generate_OR_query(query)
+        search_query = text("""
+            SELECT title, telegram_media_id, media_type
+            FROM memes
+            WHERE (
+                title &@ pgroonga_condition(
+                    :query,
+                    ARRAY[5],
+                    index_name => 'pgroonga_memes_titles_index',
+                    fuzzy_max_distance_ratio => 0.34
+                )
+                OR tags &@ pgroonga_condition(
+                    :query,
+                    index_name => 'pgroonga_memes_tags_index',
+                    fuzzy_max_distance_ratio => 0.34
+                )
+                OR title &@~ pgroonga_condition(
+                    :OR_query,
+                    ARRAY[1],
+                    index_name => 'pgroonga_memes_titles_index',
+                    fuzzy_max_distance_ratio => 0.34
+                )
+                OR tags &@~ pgroonga_condition(
+                    :OR_query,
+                    index_name => 'pgroonga_memes_tags_index',
+                    fuzzy_max_distance_ratio => 0.34
+                )
+            )
+            AND (is_public = TRUE OR uploader_telegram_id = :user_id)
+            ORDER BY pgroonga_score(tableoid, ctid) DESC;
+        """)
 
-                await cur.execute("""SELECT title, telegram_media_id, media_type, 
-                                     pgroonga_score(tableoid, ctid) AS score
-                                     FROM memes
-                                     WHERE (
-									 title &@ pgroonga_condition(
-                                                             %s,
-                                                             ARRAY[5],
-                                                             index_name => 'pgroonga_memes_titles_index',
-                                                             fuzzy_max_distance_ratio => 0.34
-                                                           )
-                                     OR tags &@ pgroonga_condition(
-                                                        %s,
-                                                        index_name => 'pgroonga_memes_tags_index',
-                                                        fuzzy_max_distance_ratio => 0.34
-                                                      )
-									 OR title &@~ pgroonga_condition(
-                                                             %s,
-                                                             ARRAY[1],
-                                                             index_name => 'pgroonga_memes_titles_index',
-                                                             fuzzy_max_distance_ratio => 0.34
-                                                           )
-                                     OR tags &@~ pgroonga_condition(
-                                                        %s,
-                                                        index_name => 'pgroonga_memes_tags_index',
-                                                        fuzzy_max_distance_ratio => 0.34
-									)) AND (is_public = TRUE OR uploader_telegram_id = %s)
-                                    ORDER BY score DESC;""",
-                             (query, query, OR_query, OR_query ,user_id))
-                await conn.commit()
-                return await cur.fetchmany(MEMES_IN_INLINE_LIST)
-        except Exception as error:
-            await conn.rollback()
-            logger.error(f"Error while searching for meme {error}")
+        result = await session.execute(
+            search_query,
+            {'query': query, 'OR_query': OR_query, 'user_id': user_id}
+        )
 
-async def add_database_entry(user_id: int,
-                       telegram_media_id: str,
-                       name: str, tags: list[str],
-                       media_type: str,
-                       duration=0,
-                       is_public=False) -> bool:
-    async with pool.connection() as conn:
-        async with conn.cursor() as cur:
-            try:
-                await add_user(user_id=user_id)
-                await cur.execute("""INSERT INTO public.memes(uploader_telegram_id, telegram_media_id, 
-                duration, title, tags, media_type, is_public)
-        VALUES (%s, %s, %s, %s, %s, %s, %s);""", (user_id, telegram_media_id, duration, name, tags, media_type, is_public))
-                await conn.commit()
-                return True
-            except Exception as error:
-                logging.error(f"Error inserting meme: {error}")
-                await conn.rollback()
-                return False
+        # Fetch all rows as a list of tuples
+        memes_list = result.fetchmany(MEMES_IN_INLINE_LIST)
+        return memes_list
+
+
+async def close_all_connections():
+    close_all_sessions()
+    await engine.dispose()
