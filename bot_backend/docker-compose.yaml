@@ -10,7 +10,7 @@ services:
       - POSTGRES_PASSWORD=password
       - POSTGRES_DB=Memes
     volumes:
-      - postgres-data-test:/var/lib/postgresql/data
+      - postgres-data:/var/lib/postgresql/data
   bot:
     build: .
     image: bot_image
@@ -20,5 +20,5 @@ services:
     environment:
       - HOST=database
 volumes:
-  postgres-data-test:
+  postgres-data:
     driver: local

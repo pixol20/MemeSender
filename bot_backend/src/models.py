@@ -42,7 +42,7 @@ class Meme(Base):
     telegram_media_id: Mapped[str]
     title: Mapped[str] = mapped_column(Text)
     tags: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default="{}")
-    media_type: Mapped[MediaType] = mapped_column(Enum(MediaType, values_callable=lambda obj: [e.value for e in obj]))
+    media_type: Mapped[MediaType] = mapped_column(Enum(MediaType, name="media_type", values_callable=lambda obj: [e.value for e in obj]))
     is_public: Mapped[bool]
 
     __table_args__ = (
