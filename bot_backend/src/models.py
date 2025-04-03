@@ -48,7 +48,7 @@ class Meme(Base):
     creator: Mapped["User"] = relationship(back_populates="created_memes")
     liked_users: Mapped[list["User"]] = relationship("User", secondary=UserLikedMemes)
     duration: Mapped[int] = mapped_column(Integer, default=0)
-    telegram_media_id: Mapped[str]
+    telegram_media_id: Mapped[str] = mapped_column(Text)
     title: Mapped[str] = mapped_column(Text)
     tags: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default="{}")
     media_type: Mapped[MediaType] = mapped_column(Enum(MediaType, name="media_type", values_callable=lambda obj: [e.value for e in obj]))
