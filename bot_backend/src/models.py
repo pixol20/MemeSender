@@ -1,6 +1,6 @@
 import enum
 from datetime import datetime
-from sqlalchemy import ForeignKey, Text, BigInteger, DateTime, Enum, Column, func, Integer
+from sqlalchemy import ForeignKey, Text, BigInteger, DateTime, Enum, Column, func, Integer, Index
 from sqlalchemy.orm import Mapped, mapped_column, declarative_base, relationship
 from sqlalchemy.dialects.postgresql import ARRAY
 
@@ -45,6 +45,21 @@ class Meme(Base):
     media_type: Mapped[MediaType] = mapped_column(Enum(MediaType, values_callable=lambda obj: [e.value for e in obj]))
     is_public: Mapped[bool]
 
+    __table_args__ = (
+        Index(
+            'pgroonga_memes_titles_index',
+            'title',
+            postgresql_using='pgroonga',
+            postgresql_with={'normalizers': '\'NormalizerNFKC150("remove_symbol", true)\''}
+        ),
+        Index(
+            'pgroonga_memes_tags_index',
+            'tags',
+            postgresql_using='pgroonga',
+            postgresql_with={'normalizers': '\'NormalizerNFKC150("remove_symbol", true)\''}
+        )
+    )
+
     def __repr__(self):
         return f"Meme(title: {self.title}, creator: {self.creator}), public: {self.is_public}"
 
@@ -60,3 +75,18 @@ class Collection(Base):
     title: Mapped[str] = mapped_column(Text)
     tags: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default="{}")
     is_public: Mapped[bool]
+
+    __table_args__ = (
+        Index(
+            'pgroonga_collections_titles_index',
+            'title',
+            postgresql_using='pgroonga',
+            postgresql_with={'normalizers': '\'NormalizerNFKC150("remove_symbol", true)\''}
+        ),
+        Index(
+            'pgroonga_collections_tags_index',
+            'tags',
+            postgresql_using='pgroonga',
+            postgresql_with={'normalizers': '\'NormalizerNFKC150("remove_symbol", true)\''}
+        )
+    )

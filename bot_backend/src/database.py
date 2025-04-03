@@ -47,24 +47,8 @@ async def init_database() -> None:
 
     # Create database tables
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
         await conn.execute(text("""CREATE EXTENSION IF NOT EXISTS pgroonga;"""))
-
-        await conn.execute(text("""CREATE INDEX IF NOT EXISTS pgroonga_memes_tags_index ON memes
-                                            USING pgroonga (tags)
-                                            WITH (normalizers='NormalizerNFKC150("remove_symbol", true)');"""))
-
-        await conn.execute(text("""CREATE INDEX IF NOT EXISTS pgroonga_memes_titles_index ON memes
-                                            USING pgroonga (title)
-                                            WITH (normalizers='NormalizerNFKC150("remove_symbol", true)');"""))
-
-        await conn.execute(text("""CREATE INDEX IF NOT EXISTS pgroonga_collections_tags_index ON collections
-                                            USING pgroonga (tags)
-                                            WITH (normalizers='NormalizerNFKC150("remove_symbol", true)');"""))
-
-        await conn.execute(text("""CREATE INDEX IF NOT EXISTS pgroonga_collections_titles_index ON collections
-                                            USING pgroonga (title)
-                                            WITH (normalizers='NormalizerNFKC150("remove_symbol", true)');"""))
+        await conn.run_sync(Base.metadata.create_all)
     session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
 
 
