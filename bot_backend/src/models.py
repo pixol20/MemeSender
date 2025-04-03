@@ -24,6 +24,7 @@ class User(Base):
     telegram_id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=False)
     saved_collections: Mapped[list[int]] = mapped_column(ARRAY(BigInteger), server_default="{}")
     created_memes: Mapped[list["Meme"]] = relationship()
+    created_collections: Mapped[list["Collection"]] = relationship()
     is_banned: Mapped[bool] = mapped_column(default=False)
     last_upload_date: Mapped[datetime] = Column(DateTime(timezone=True), server_default=func.now())
 
@@ -69,6 +70,7 @@ class Collection(Base):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     creator_telegram_id: Mapped[int] = mapped_column(ForeignKey("users.telegram_id"))
+    creator: Mapped["User"] = relationship(back_populates="created_collections")
     meme_ids: Mapped[list[int]] = mapped_column(ARRAY(BigInteger), server_default="{}")
     likes: Mapped[int] = mapped_column(BigInteger)
     users_amount: Mapped[int] = mapped_column(BigInteger)
