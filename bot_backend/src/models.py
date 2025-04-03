@@ -17,12 +17,20 @@ class MediaType(enum.Enum):
     VOICE = "voice"
 
 
+class UserLikedMemes(Base):
+    __tablename__ = "user_liked_memes"
+
+    id = Column(BigInteger, primary_key=True)
+    user_telegram_id: Mapped[int] = mapped_column(ForeignKey("users.telegram_id"))
+    meme_id: Mapped[int] = mapped_column(ForeignKey("memes.id"))
+
 
 class User(Base):
     __tablename__ = "users"
 
     telegram_id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=False)
     saved_collections: Mapped[list[int]] = mapped_column(ARRAY(BigInteger), server_default="{}")
+    liked_memes: Mapped[list["Meme"]] = relationship("Meme", secondary=UserLikedMemes)
     created_memes: Mapped[list["Meme"]] = relationship()
     created_collections: Mapped[list["Collection"]] = relationship()
     is_banned: Mapped[bool] = mapped_column(default=False)
@@ -38,8 +46,8 @@ class Meme(Base):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     uploader_telegram_id: Mapped[int] = mapped_column(ForeignKey("users.telegram_id"))
     creator: Mapped["User"] = relationship(back_populates="created_memes")
+    liked_users: Mapped[list["User"]] = relationship("User", secondary=UserLikedMemes)
     duration: Mapped[int] = mapped_column(Integer, default=0)
-    likes: Mapped[int] = mapped_column(BigInteger, default=0)
     telegram_media_id: Mapped[str]
     title: Mapped[str] = mapped_column(Text)
     tags: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default="{}")
@@ -92,3 +100,4 @@ class Collection(Base):
             postgresql_with={'normalizers': '\'NormalizerNFKC150("remove_symbol", true)\''}
         )
     )
+
