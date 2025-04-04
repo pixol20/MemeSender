@@ -44,7 +44,7 @@ class Meme(Base):
     __tablename__ = "memes"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
-    uploader_telegram_id: Mapped[int] = mapped_column(ForeignKey("users.telegram_id"))
+    creator_telegram_id: Mapped[int] = mapped_column(ForeignKey("users.telegram_id"))
     creator: Mapped["User"] = relationship(back_populates="created_memes")
     liked_users: Mapped[list["User"]] = relationship("User", secondary=UserLikedMemes)
     duration: Mapped[int] = mapped_column(Integer, default=0)
