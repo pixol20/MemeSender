@@ -71,7 +71,7 @@ async def add_database_entry(
         telegram_media_id: str,
         name: str,
         tags: list[str],
-        media_type: str,
+        media_type: MediaType,
         duration: int,
         is_public: bool,
 ) -> bool:

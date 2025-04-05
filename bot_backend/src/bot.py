@@ -22,9 +22,7 @@ from telegram.ext import (
     filters,
     InlineQueryHandler
 )
-
-from models import Meme
-
+from models import Meme, MediaType
 
 import logging
 
@@ -117,27 +115,27 @@ async def meme(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if message.photo:
         # Handle photos
         media = message.photo[-1]  # Highest resolution
-        media_type = "photo"
+        media_type = MediaType.PHOTO
     elif message.video:
         # Handle videos
         media = message.video
-        media_type = "video"
+        media_type = MediaType.VIDEO
         duration = media.duration
     elif message.animation:
         # Handle GIFs
         media = message.animation
-        media_type = "gif"
+        media_type = MediaType.GIF
         duration = media.duration
     elif message.voice:
         # Handle voice messages
         media = message.voice
-        media_type = "voice"
+        media_type = MediaType.VOICE
         duration = media.duration
 
     elif message.audio:
         # Handle audio messages
         media = message.audio
-        media_type = "audio"
+        media_type = MediaType.AUDIO
         duration = media.duration
 
     if media:
