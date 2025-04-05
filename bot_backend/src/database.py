@@ -79,7 +79,7 @@ async def add_database_entry(
         async with session_maker() as session:
             async with session.begin():
                 new_meme = Meme(
-                    uploader_telegram_id=user_id,
+                    creator_telegram_id=user_id,
                     telegram_media_id=telegram_media_id,
                     duration=duration,
                     title=name,
