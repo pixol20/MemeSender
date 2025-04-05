@@ -1,3 +1,4 @@
+import math
 from typing import Sequence
 from uuid import uuid4
 from telegram import (InlineQueryResultCachedVideo,
@@ -5,7 +6,19 @@ from telegram import (InlineQueryResultCachedVideo,
                       InlineQueryResultCachedGif,
                       InlineQueryResultCachedVoice,
                       InlineQueryResultCachedAudio,
-                      InlineQueryResult)
+                      InlineQueryResult,
+                      InlineKeyboardMarkup,
+                      InlineKeyboardButton
+                      )
+
+from sqlalchemy import ScalarResult
+
+from src.models import Meme, MediaType
+import json
+
+MEMES_PER_PAGE = 10
+
+
 
 async def generate_inline_list(database_data: list[tuple[str, str, str]]) -> Sequence[InlineQueryResult]:
     """Generate inline entries from database response
@@ -49,3 +62,46 @@ async def generate_inline_list(database_data: list[tuple[str, str, str]]) -> Seq
             ))
     return inline_list
 
+
+async def generate_text_for_meme_button(in_meme: Meme):
+    emoji_mapping = {
+        MediaType.AUDIO.value: "🔊",
+        MediaType.GIF.value: "🎞️",
+        MediaType.PHOTO.value: "🖼️",
+        MediaType.VIDEO.value: "📹",
+        MediaType.VOICE.value: "🎤",
+    }
+    media_type_value = in_meme.media_type.value
+    emoji = emoji_mapping.get(media_type_value, "❓")
+    return f"{emoji}{in_meme.title}{emoji}"
+
+
+async def generate_inline_keyboard_page(in_memes: Sequence[Meme], page_number: int) -> InlineKeyboardMarkup:
+    keyboard = []
+
+    in_memes_len = len(in_memes)
+    start = min(page_number*MEMES_PER_PAGE, in_memes_len)
+    end = min(page_number*MEMES_PER_PAGE+MEMES_PER_PAGE, in_memes_len)
+
+    for current_meme in in_memes[start:end]:
+        button_text = await generate_text_for_meme_button(current_meme)
+        new_button = [InlineKeyboardButton(button_text, callback_data=f"meme:{current_meme.id}")]
+        keyboard.append(new_button)
+
+    left_right = []
+
+
+    if page_number > 0:
+        left_right.append(InlineKeyboardButton("⬅️", callback_data=f"page:{max(0, page_number - 1)}"))
+
+    # Last page is length of memes divided by memes per page and rounded up.
+    # I use minus one here because page numbers start from 0
+    last_page_number = math.ceil(in_memes_len / MEMES_PER_PAGE)-1
+
+    if page_number < last_page_number:
+        left_right.append(InlineKeyboardButton("➡️", callback_data=f"page:{min(last_page_number, page_number + 1)}"))
+
+
+    keyboard.append(left_right)
+    result = InlineKeyboardMarkup(keyboard)
+    return result

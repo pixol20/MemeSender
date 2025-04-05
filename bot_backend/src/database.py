@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 from os import getenv
 from typing import Optional
 
-from sqlalchemy import select, text
+from sqlalchemy import select, text, Sequence, ScalarResult
 from sqlalchemy.orm import close_all_sessions
 from sqlalchemy.ext.asyncio import (
     create_async_engine,
@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.exc import IntegrityError
 from models import User, Base, Meme
+from src.models import MediaType
 
 # Load environment variables
 load_dotenv()
@@ -142,6 +143,19 @@ async def search_for_meme_inline_by_query(query: str, user_id: int):
         # Fetch all rows as a list of tuples
         memes_list = result.fetchmany(MEMES_IN_INLINE_LIST)
         return memes_list
+
+
+
+async def get_all_user_memes(user_telegram_id: int) -> Sequence[Meme]:
+    """get all memes created by user"""
+    async with session_maker() as session:
+        async with session.begin():
+            stmt = select(Meme).where(Meme.creator_telegram_id == user_telegram_id).order_by(Meme.id.desc())
+
+            result = await session.execute(stmt)
+
+            memes = result.scalars().all()
+            return memes
 
 
 async def close_all_connections():

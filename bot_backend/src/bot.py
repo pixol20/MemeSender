@@ -6,12 +6,9 @@ from os import getenv
 
 from uuid import uuid4
 
-
 from telegram import (Update,
                       ReplyKeyboardMarkup,
-                      ReplyKeyboardRemove,
-                      InlineKeyboardMarkup,
-                      InlineKeyboardButton)
+                      ReplyKeyboardRemove,)
 
 from telegram.ext import (
     Application,
@@ -20,15 +17,18 @@ from telegram.ext import (
     ConversationHandler,
     MessageHandler,
     filters,
-    InlineQueryHandler
+    InlineQueryHandler,
+    CallbackQueryHandler
 )
 from models import Meme, MediaType
 
 import logging
 
-from sqlalchemy import ScalarResult
 import database
-from tg_utilities.generators import generate_inline_list
+
+from tg_utilities.generators import generate_inline_list, generate_inline_keyboard_page
+
+
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -273,6 +273,34 @@ async def inline_query(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
     await update.inline_query.answer(results, cache_time=4)
 
+async def user_get_memes(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id
+
+    memes = await database.get_all_user_memes(user_id)
+
+
+    keyboard = await generate_inline_keyboard_page(memes, 0)
+    await update.message.reply_text("Choose meme:", reply_markup=keyboard)
+
+
+async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Parses the CallbackQuery and updates the message text."""
+    query = update.callback_query
+    query_text = query.data
+    user_id = query.from_user.id
+
+    await query.answer()
+
+    if query_text[:5] == "meme:":
+        pass
+    elif query_text[:5] == "page:":
+        memes = await database.get_all_user_memes(user_id)
+        selected_page = int(query_text[5:])
+        keyboard = await generate_inline_keyboard_page(memes, selected_page)
+        await query.edit_message_text("Choose meme:", reply_markup=keyboard)
+
+
+
 async def start_db(application: Application):
     await database.init_database()
 
@@ -284,6 +312,7 @@ if __name__ == "__main__":
     app = Application.builder().token(BOT_TOKEN).post_init(start_db).post_shutdown(stop_db).build()
     logger.info("adding commands")
     app.add_handler(CommandHandler('start', start_command),group=1)
+    app.add_handler(CommandHandler("memes", user_get_memes), group=1)
     conv_handler = ConversationHandler(entry_points=[CommandHandler("add", add_command)],
                                        states={
                                            MEME: [MessageHandler(filters.PHOTO|filters.VIDEO|filters.AUDIO|filters.ANIMATION|filters.VOICE, meme)],
@@ -301,5 +330,6 @@ if __name__ == "__main__":
     app.add_handler(conv_handler, group=0)
 
     app.add_handler(InlineQueryHandler(inline_query))
+    app.add_handler(CallbackQueryHandler(button))
     logger.info("polling")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
