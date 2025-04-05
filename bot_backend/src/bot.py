@@ -10,12 +10,8 @@ from uuid import uuid4
 from telegram import (Update,
                       ReplyKeyboardMarkup,
                       ReplyKeyboardRemove,
-                      InlineQueryResultCachedVideo,
-                      InlineQueryResultCachedPhoto,
-                      InlineQueryResultCachedGif,
-                      InlineQueryResultCachedVoice,
-                      InlineQueryResultCachedAudio,
-                      InlineQueryResult)
+                      InlineKeyboardMarkup,
+                      InlineKeyboardButton)
 
 from telegram.ext import (
     Application,
@@ -27,8 +23,14 @@ from telegram.ext import (
     InlineQueryHandler
 )
 
+from models import Meme
+
+
 import logging
+
+from sqlalchemy import ScalarResult
 import database
+from tg_utilities.generators import generate_inline_list
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -258,47 +260,7 @@ async def command_in_wrong_place(update: Update, context: ContextTypes.DEFAULT_T
     return ConversationHandler.END
 
 
-async def _generate_inline_list(database_data: list[tuple[str, str, str]]) -> Sequence[InlineQueryResult]:
-    """Generate inline entries from database response
-       Args:
-           database_data: data output from database
-       Returns:
-           Inline query results that can be sent to client
-    """
-    if database_data is None:
-        return []
-    inline_list = []
-    for i_meme in database_data:
-        if i_meme[2] == "video":
-            inline_list.append(InlineQueryResultCachedVideo(
-                id=str(uuid4()),
-                video_file_id=i_meme[1],
-                title=i_meme[0],
-            ))
-        elif i_meme[2] == "photo":
-            inline_list.append(InlineQueryResultCachedPhoto(
-                id=str(uuid4()),
-                photo_file_id=i_meme[1],
-                title=i_meme[0]
-            ))
-        elif i_meme[2] == "gif":
-            inline_list.append(InlineQueryResultCachedGif(
-                id=str(uuid4()),
-                gif_file_id=i_meme[1],
-                title=i_meme[0]
-            ))
-        elif i_meme[2] == "voice":
-            inline_list.append(InlineQueryResultCachedVoice(
-                id=str(uuid4()),
-                voice_file_id=i_meme[1],
-                title=i_meme[0]
-            ))
-        elif i_meme[2] == "audio":
-            inline_list.append(InlineQueryResultCachedAudio(
-                id=str(uuid4()),
-                audio_file_id=i_meme[1],
-            ))
-    return inline_list
+
 
 async def inline_query(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.inline_query.query
@@ -309,7 +271,7 @@ async def inline_query(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
     processed_query = query.strip()
     db_response = await database.search_for_meme_inline_by_query(processed_query, user_id)
-    results = await _generate_inline_list(db_response)
+    results = await generate_inline_list(db_response)
 
     await update.inline_query.answer(results, cache_time=4)
 
