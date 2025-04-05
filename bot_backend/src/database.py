@@ -130,7 +130,7 @@ async def search_for_meme_inline_by_query(query: str, user_id: int):
                     fuzzy_max_distance_ratio => 0.34
                 )
             )
-            AND (is_public = TRUE OR uploader_telegram_id = :user_id)
+            AND (is_public = TRUE OR creator_telegram_id = :user_id)
             ORDER BY pgroonga_score(tableoid, ctid) DESC;
         """)
 
