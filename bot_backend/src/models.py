@@ -1,13 +1,14 @@
 import enum
 from datetime import datetime
 from sqlalchemy import ForeignKey, Text, BigInteger, DateTime, Enum, Column, func, Integer, Index
-from sqlalchemy.orm import Mapped, mapped_column, declarative_base, relationship
+from sqlalchemy.orm import Mapped, mapped_column, DeclarativeBase, relationship
 from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy.ext.asyncio import AsyncAttrs
 
 
 
-Base = declarative_base()
-
+class Base(AsyncAttrs, DeclarativeBase):
+    pass
 
 class MediaType(enum.Enum):
     AUDIO = "audio"
