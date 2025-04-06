@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from os import getenv
 
 from uuid import uuid4
+import traceback
 
 from telegram import (Update,
                       ReplyKeyboardMarkup,
@@ -92,11 +93,15 @@ async def handle_upload(update: Update, context: ContextTypes.DEFAULT_TYPE) -> b
                 context.user_data[MEME_NAME])
 
     await update.message.reply_text("Uploading meme", reply_markup=ReplyKeyboardRemove())
-
-    is_successful = await database.add_database_entry(user_id=user_id, telegram_media_id=user_data[TELEGRAM_MEDIA_ID],
-                                                name=user_data[MEME_NAME], tags=user_data[TAGS],
-                                                media_type=user_data[MEDIA_TYPE], duration=user_data[DURATION],
-                                                is_public=user_data[MEME_PUBLIC])
+    try:
+        is_successful = await database.add_database_entry(user_id=user_id, telegram_media_id=user_data[TELEGRAM_MEDIA_ID],
+                                                    name=user_data[MEME_NAME], tags=user_data[TAGS],
+                                                    media_type=user_data[MEDIA_TYPE], duration=user_data[DURATION],
+                                                    is_public=user_data[MEME_PUBLIC])
+    except Exception as e:
+        is_successful = False
+        logger.error(f"Error while uploading meme: {str(e)}")
+        logger.error("Stack Trace:\n" + traceback.format_exc())
 
     if is_successful:
         await update.message.reply_text("Meme uploaded")
@@ -113,27 +118,22 @@ async def upload_meme(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     duration = 0
 
     if message.photo:
-        # Handle photos
         media = message.photo[-1]  # Highest resolution
         media_type = MediaType.PHOTO
     elif message.video:
-        # Handle videos
         media = message.video
         media_type = MediaType.VIDEO
         duration = media.duration
     elif message.animation:
-        # Handle GIFs
         media = message.animation
         media_type = MediaType.GIF
         duration = media.duration
     elif message.voice:
-        # Handle voice messages
         media = message.voice
         media_type = MediaType.VOICE
         duration = media.duration
 
     elif message.audio:
-        # Handle audio messages
         media = message.audio
         media_type = MediaType.AUDIO
         duration = media.duration
