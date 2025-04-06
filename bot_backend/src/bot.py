@@ -315,7 +315,7 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("memes", user_get_memes), group=1)
     conv_handler = ConversationHandler(entry_points=[CommandHandler("add", add_command)],
                                        states={
-                                           MEME: [MessageHandler(filters.PHOTO | filters.VIDEO | filters.AUDIO | filters.ANIMATION | filters.VOICE, upload_meme)],
+                                           MEME: [MessageHandler(filters.PHOTO | filters.VIDEO | filters.ANIMATION | filters.VOICE, upload_meme)],
                                            NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, name)],
                                            DECIDE_USE_TAGS_OR_NO: [MessageHandler(filters.Regex("^(Yes✅|No❌)$"),
                                                                                   decide_use_tags_or_no)],
