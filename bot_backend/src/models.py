@@ -25,6 +25,13 @@ class UserLikedMemes(Base):
     user_telegram_id: Mapped[int] = mapped_column(ForeignKey("users.telegram_id"))
     meme_id: Mapped[int] = mapped_column(ForeignKey("memes.id"))
 
+class MemeToCollection(Base):
+    __tablename__ = "meme_to_collection"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    meme_id: Mapped[int] = mapped_column(ForeignKey("memes.id"))
+    collection_id: Mapped[int] = mapped_column(ForeignKey("collections.id"))
+
 
 class User(Base):
     __tablename__ = "users"
@@ -48,6 +55,7 @@ class Meme(Base):
     creator_telegram_id: Mapped[int] = mapped_column(ForeignKey("users.telegram_id"))
     creator: Mapped["User"] = relationship(back_populates="created_memes")
     liked_users: Mapped[list["User"]] = relationship("User", secondary="user_liked_memes", back_populates="liked_memes")
+    collections: Mapped[list["Collection"]] = relationship("Collection", secondary="meme_to_collection", back_populates="memes")
     duration: Mapped[int] = mapped_column(Integer, default=0)
     telegram_media_id: Mapped[str] = mapped_column(Text)
     title: Mapped[str] = mapped_column(Text)
@@ -80,7 +88,7 @@ class Collection(Base):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     creator_telegram_id: Mapped[int] = mapped_column(ForeignKey("users.telegram_id"))
     creator: Mapped["User"] = relationship(back_populates="created_collections")
-    meme_ids: Mapped[list[int]] = mapped_column(ARRAY(BigInteger), server_default="{}")
+    memes: Mapped[list[User]] = relationship("Meme", secondary="meme_to_collection", back_populates="collections")
     likes: Mapped[int] = mapped_column(BigInteger)
     users_amount: Mapped[int] = mapped_column(BigInteger)
     title: Mapped[str] = mapped_column(Text)
