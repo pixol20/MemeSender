@@ -27,14 +27,15 @@ from models import Meme, MediaType
 import logging
 
 import database
+from src.tg_utilities.meme_menu_manager import send_media_message_from_meme, delete_current_media_message, delete_menu
 
-from tg_utilities import delete_current_media_message
+from tg_utilities.meme_menu_manager import update_meme_menu
 from tg_utilities.generators import (generate_inline_list,
                                      generate_inline_keyboard_page,
                                      generate_meme_controls,
                                      generate_yes_no_for_meme_deletion)
 from src.constants import (MEME_NAME, MEME_PUBLIC, MEDIA_TYPE, TAGS, TELEGRAM_MEDIA_ID, DURATION,
-                           MEMES_CONTROL_MESSAGE, LAST_SELECTED_PAGE)
+                           MEMES_CONTROL_MESSAGE, LAST_SELECTED_PAGE, MEME_MEDIA_MESSAGE)
 
 
 logging.basicConfig(
@@ -272,12 +273,14 @@ async def inline_query(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 async def user_get_memes(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
+    chat_id = update.message.chat_id
 
     memes = await database.get_all_user_memes(user_id)
 
-
     keyboard = await generate_inline_keyboard_page(memes, 0)
     context.user_data[LAST_SELECTED_PAGE] = 0
+
+    # Create message for updater
     context.user_data[MEMES_CONTROL_MESSAGE] = await update.message.reply_text("Choose meme:", reply_markup=keyboard)
 
 
@@ -287,62 +290,60 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query_text = query.data
     user_id = query.from_user.id
     chat_id = query.message.chat.id
-
     await query.answer()
 
     if query_text[:5] == "meme:":
         selected_meme = int(query_text[5:])
         meme = await database.get_meme_by_id_and_check_user(selected_meme, user_id)
         if meme:
-            await delete_current_media_message(context=context, chat_id=chat_id)
-
             meme_controls = await generate_meme_controls(meme)
 
-            if meme.media_type == MediaType.PHOTO:
-                context.user_data[MEMES_CONTROL_MESSAGE] = await context.bot.sendPhoto(photo=meme.telegram_media_id, chat_id=chat_id, reply_markup=meme_controls)
-            elif meme.media_type == MediaType.VIDEO:
-                context.user_data[MEMES_CONTROL_MESSAGE] = await context.bot.sendVideo(video=meme.telegram_media_id, chat_id=chat_id, reply_markup=meme_controls)
-            elif meme.media_type == MediaType.GIF:
-                context.user_data[MEMES_CONTROL_MESSAGE] = await context.bot.sendAnimation(animation=meme.telegram_media_id, chat_id=chat_id, reply_markup=meme_controls)
-            elif meme.media_type == MediaType.VOICE:
-                context.user_data[MEMES_CONTROL_MESSAGE] = await context.bot.sendVoice(voice=meme.telegram_media_id, chat_id=chat_id, reply_markup=meme_controls)
+            await update_meme_menu(context=context, new_text=meme.title, delete_media=True, chat_id=chat_id)
+            await send_media_message_from_meme(context=context, meme=meme, chat_id=chat_id, reply_markup=meme_controls)
 
     elif query_text[:5] == "page:":
         memes = await database.get_all_user_memes(user_id)
         selected_page = int(query_text[5:])
         context.user_data[LAST_SELECTED_PAGE] = selected_page
         keyboard = await generate_inline_keyboard_page(memes, selected_page)
-        context.user_data[MEMES_CONTROL_MESSAGE] = await query.edit_message_text("Choose meme:", reply_markup=keyboard)
+        await update_meme_menu(context=context,
+                              new_text="Choose meme: ",
+                              delete_media=True,
+                              reply_markup=keyboard,
+                              chat_id=chat_id)
 
     elif query_text[:5] == "back":
         memes = await database.get_all_user_memes(user_id)
         selected_page = context.user_data.get(LAST_SELECTED_PAGE, 0)
         keyboard = await generate_inline_keyboard_page(memes, selected_page)
 
-        await delete_current_media_message(context=context, chat_id=chat_id)
-
-        context.user_data[MEMES_CONTROL_MESSAGE] = await context.bot.sendMessage(text="Choose meme:", chat_id=chat_id, reply_markup=keyboard)
+        await update_meme_menu(context=context,
+                              new_text="Choose meme: ",
+                              delete_media=True,
+                              reply_markup=keyboard,
+                              chat_id=chat_id)
 
     elif query_text[:5] == "delt:":
         meme_id = int(query_text[5:])
         meme = await database.get_meme_by_id_and_check_user(meme_id=meme_id, user_telegram_id=user_id)
 
-        await delete_current_media_message(context=context, chat_id=chat_id)
-
         buttons = await generate_yes_no_for_meme_deletion(meme)
         meme_title = meme.title
-        context.user_data[MEMES_CONTROL_MESSAGE] = await context.bot.sendMessage(text=f"Are you sure you want do delete meme: {meme_title}",
-                                                                              reply_markup=buttons,
-                                                                              chat_id=chat_id)
+        await update_meme_menu(new_text=f"Are you sure you want do delete meme: {meme_title}",
+                              reply_markup=buttons,
+                              chat_id=chat_id,
+                              context=context,
+                              delete_media=True)
 
     elif query_text[:5] == "cdel:":
         meme_id = int(query_text[5:])
-        await delete_current_media_message(context=context, chat_id=chat_id)
+        await delete_current_media_message(context=context)
         successful = await database.delete_meme_check_and_check_user(meme_id=meme_id, user_telegram_id=user_id)
         if successful:
             await context.bot.sendMessage(text="Meme deleted", chat_id=chat_id)
         else:
             await context.bot.sendMessage(text="Something failed", chat_id=chat_id)
+        await delete_menu(context=context, chat_id=chat_id)
 
 
 
