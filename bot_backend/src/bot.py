@@ -28,7 +28,7 @@ import logging
 
 import database
 
-from tg_utilities import delete_current_control_message
+from tg_utilities import delete_current_media_message
 from tg_utilities.generators import (generate_inline_list,
                                      generate_inline_keyboard_page,
                                      generate_meme_controls,
@@ -294,7 +294,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         selected_meme = int(query_text[5:])
         meme = await database.get_meme_by_id_and_check_user(selected_meme, user_id)
         if meme:
-            await delete_current_control_message(context=context, chat_id=chat_id)
+            await delete_current_media_message(context=context, chat_id=chat_id)
 
             meme_controls = await generate_meme_controls(meme)
 
@@ -319,7 +319,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         selected_page = context.user_data.get(LAST_SELECTED_PAGE, 0)
         keyboard = await generate_inline_keyboard_page(memes, selected_page)
 
-        await delete_current_control_message(context=context, chat_id=chat_id)
+        await delete_current_media_message(context=context, chat_id=chat_id)
 
         context.user_data[MEMES_CONTROL_MESSAGE] = await context.bot.sendMessage(text="Choose meme:", chat_id=chat_id, reply_markup=keyboard)
 
@@ -327,7 +327,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         meme_id = int(query_text[5:])
         meme = await database.get_meme_by_id_and_check_user(meme_id=meme_id, user_telegram_id=user_id)
 
-        await delete_current_control_message(context=context, chat_id=chat_id)
+        await delete_current_media_message(context=context, chat_id=chat_id)
 
         buttons = await generate_yes_no_for_meme_deletion(meme)
         meme_title = meme.title
@@ -337,7 +337,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     elif query_text[:5] == "cdel:":
         meme_id = int(query_text[5:])
-        await delete_current_control_message(context=context, chat_id=chat_id)
+        await delete_current_media_message(context=context, chat_id=chat_id)
         successful = await database.delete_meme_check_and_check_user(meme_id=meme_id, user_telegram_id=user_id)
         if successful:
             await context.bot.sendMessage(text="Meme deleted", chat_id=chat_id)

@@ -8,6 +8,6 @@ MEME_PUBLIC = "meme_public"
 
 # Message from bot that contains memes created by user.
 MEMES_CONTROL_MESSAGE = "memes_control_message"
-
+MEME_MEDIA_MESSAGE = "meme_media_message"
 
 LAST_SELECTED_PAGE = "last_selected_page"
