@@ -117,10 +117,9 @@ async def generate_meme_controls(meme: Meme) -> InlineKeyboardMarkup:
     meme_id = meme.id
     delete_button = InlineKeyboardButton("🗑️Delete meme🗑️", callback_data=f"delt:{meme_id}")
     rename_button = InlineKeyboardButton("✏️Rename meme✏️", callback_data=f"rnme:{meme_id}")
-    edit_tags = InlineKeyboardButton("✏️Change tags✏️", callback_data=f"edts:{meme_id}")
     go_back_button = InlineKeyboardButton("⬅️", callback_data="back")
 
-    keyboard = [[delete_button], [rename_button], [edit_tags], [go_back_button]]
+    keyboard = [[delete_button], [rename_button], [go_back_button]]
 
     result = InlineKeyboardMarkup(keyboard)
 
