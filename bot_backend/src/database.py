@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 from os import getenv
 from typing import Optional
 
-from sqlalchemy import select, text, Sequence, ScalarResult
+from sqlalchemy import select, text, Sequence, ScalarResult, delete
 from sqlalchemy.orm import close_all_sessions
 from sqlalchemy.ext.asyncio import (
     create_async_engine,
@@ -58,8 +58,13 @@ async def add_user_to_database(telegram_id: int) -> bool:
     try:
         async with session_maker() as session:
             async with session.begin():
-                new_user = User(telegram_id = telegram_id)
-                session.add(new_user)
+                get_user_stmt = select(User).where(User.telegram_id == telegram_id)
+                db_response = await session.execute(get_user_stmt)
+                user_exists = db_response.first()
+
+                if not user_exists:
+                    new_user = User(telegram_id = telegram_id)
+                    session.add(new_user)
                 return True
     except Exception as e:
         logger.error(f"Error while adding user to database: {e}")
@@ -167,6 +172,19 @@ async def get_meme_by_id_and_check_user(meme_id: int, user_telegram_id: int) -> 
             meme = result.scalars().first()
             return meme
 
+
+async def delete_meme_check_and_check_user(meme_id: int, user_telegram_id: int) -> bool:
+    try:
+        async with session_maker() as session:
+            async with session.begin():
+                stmt = delete(Meme).where(Meme.id == meme_id).where(Meme.creator_telegram_id == user_telegram_id)
+
+                result = await session.execute(stmt)
+    except Exception as e:
+        logger.error(f"Error while deleting meme: {e}")
+        return False
+
+    return True
 
 async def close_all_connections():
     close_all_sessions()

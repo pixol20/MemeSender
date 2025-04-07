@@ -125,3 +125,13 @@ async def generate_meme_controls(meme: Meme) -> InlineKeyboardMarkup:
     result = InlineKeyboardMarkup(keyboard)
 
     return result
+
+async def generate_yes_no_for_meme_deletion(meme: Meme):
+    meme_id = meme.id
+
+    delete_button = InlineKeyboardButton("delete", callback_data=f"cdel:{meme_id}")
+    not_delete_button = InlineKeyboardButton("not delete", callback_data=f"meme:{meme_id}")
+    keyboard = [[delete_button, not_delete_button]]
+
+    result = InlineKeyboardMarkup(keyboard)
+    return result
