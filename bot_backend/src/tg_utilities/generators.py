@@ -8,10 +8,11 @@ from telegram import (InlineQueryResultCachedVideo,
                       InlineQueryResultCachedAudio,
                       InlineQueryResult,
                       InlineKeyboardMarkup,
-                      InlineKeyboardButton
+                      InlineKeyboardButton,
                       )
 
 from sqlalchemy import ScalarResult
+
 
 from src.models import Meme, MediaType
 import json
@@ -104,4 +105,23 @@ async def generate_inline_keyboard_page(in_memes: Sequence[Meme], page_number: i
 
     keyboard.append(left_right)
     result = InlineKeyboardMarkup(keyboard)
+    return result
+
+async def generate_meme_controls(meme: Meme) -> InlineKeyboardMarkup:
+    """Generate controls like delete or rename for chosen meme
+       Args:
+           meme: selected meme
+       Returns:
+           InlineKeyboardMarkup for selected meme
+    """
+    meme_id = meme.id
+    delete_button = InlineKeyboardButton("🗑️Delete meme🗑️", callback_data=f"delt:{meme_id}")
+    rename_button = InlineKeyboardButton("✏️Rename meme✏️", callback_data=f"rnme:{meme_id}")
+    edit_tags = InlineKeyboardButton("✏️Change tags✏️", callback_data=f"edts:{meme_id}")
+    go_back_button = InlineKeyboardButton("⬅️", callback_data="back")
+
+    keyboard = [[delete_button], [rename_button], [edit_tags], [go_back_button]]
+
+    result = InlineKeyboardMarkup(keyboard)
+
     return result

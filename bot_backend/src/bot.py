@@ -9,7 +9,8 @@ import traceback
 
 from telegram import (Update,
                       ReplyKeyboardMarkup,
-                      ReplyKeyboardRemove,)
+                      ReplyKeyboardRemove,
+                      Message)
 
 from telegram.ext import (
     Application,
@@ -27,7 +28,7 @@ import logging
 
 import database
 
-from tg_utilities.generators import generate_inline_list, generate_inline_keyboard_page
+from tg_utilities.generators import generate_inline_list, generate_inline_keyboard_page, generate_meme_controls
 
 
 
@@ -51,6 +52,14 @@ TELEGRAM_MEDIA_ID = "telegram_media_id"
 DURATION = "duration"
 TAGS = "tags"
 MEME_PUBLIC = "meme_public"
+
+# Message from bot that contains memes created by user.
+MEMES_LIST_MESSAGE = "memes_list_message"
+
+# Message from bot that contains selected meme
+MEME_MESSAGE = "meme_message"
+
+LAST_SELECTED_PAGE = "last_selected_page"
 
 MAX_TEXT_LENGTH = 512
 
@@ -228,8 +237,6 @@ async def decide_public_or_no(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     return ConversationHandler.END
 
-
-
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
 
@@ -280,7 +287,8 @@ async def user_get_memes(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
     keyboard = await generate_inline_keyboard_page(memes, 0)
-    await update.message.reply_text("Choose meme:", reply_markup=keyboard)
+    context.user_data[LAST_SELECTED_PAGE] = 0
+    context.user_data[MEMES_LIST_MESSAGE] = await update.message.reply_text("Choose meme:", reply_markup=keyboard)
 
 
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -292,12 +300,41 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await query.answer()
 
     if query_text[:5] == "meme:":
-        pass
+        selected_meme = int(query_text[5:])
+        meme = await database.get_meme_by_id_and_check_user(selected_meme, user_id)
+        if meme:
+            if isinstance(context.user_data.get(MEMES_LIST_MESSAGE, None), Message):
+                await context.bot.deleteMessage(message_id=context.user_data[MEMES_LIST_MESSAGE].id, chat_id = query.message.chat.id)
+
+            meme_controls = await generate_meme_controls(meme)
+
+            if meme.media_type == MediaType.PHOTO:
+                context.user_data[MEME_MESSAGE] = await context.bot.sendPhoto(photo=meme.telegram_media_id, chat_id=query.message.chat.id, reply_markup=meme_controls)
+            elif meme.media_type == MediaType.VIDEO:
+                context.user_data[MEME_MESSAGE] = await context.bot.sendVideo(video=meme.telegram_media_id, chat_id=query.message.chat.id, reply_markup=meme_controls)
+            elif meme.media_type == MediaType.GIF:
+                context.user_data[MEME_MESSAGE] = await context.bot.sendAnimation(animation=meme.telegram_media_id, chat_id=query.message.chat.id, reply_markup=meme_controls)
+            elif meme.media_type == MediaType.VOICE:
+                context.user_data[MEME_MESSAGE] = await context.bot.sendVoice(voice=meme.telegram_media_id, chat_id=query.message.chat.id, reply_markup=meme_controls)
+
     elif query_text[:5] == "page:":
         memes = await database.get_all_user_memes(user_id)
         selected_page = int(query_text[5:])
+        context.user_data[LAST_SELECTED_PAGE] = selected_page
         keyboard = await generate_inline_keyboard_page(memes, selected_page)
-        await query.edit_message_text("Choose meme:", reply_markup=keyboard)
+        context.user_data[MEMES_LIST_MESSAGE] = await query.edit_message_text("Choose meme:", reply_markup=keyboard)
+
+    elif query_text[:5] == "back":
+        memes = await database.get_all_user_memes(user_id)
+        selected_page = context.user_data.get(LAST_SELECTED_PAGE, 0)
+        keyboard = await generate_inline_keyboard_page(memes, selected_page)
+
+        if isinstance(context.user_data.get(MEME_MESSAGE, None), Message):
+            await context.bot.deleteMessage(message_id=context.user_data[MEME_MESSAGE].id,
+                                            chat_id=query.message.chat.id)
+
+        context.user_data[MEMES_LIST_MESSAGE] = await context.bot.sendMessage(text="Choose meme:", chat_id=query.message.chat.id, reply_markup=keyboard)
+
 
 
 

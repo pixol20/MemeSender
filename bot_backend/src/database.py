@@ -157,6 +157,16 @@ async def get_all_user_memes(user_telegram_id: int) -> Sequence[Meme]:
             memes = result.scalars().all()
             return memes
 
+async def get_meme_by_id_and_check_user(meme_id: int, user_telegram_id: int) -> Optional[Meme]:
+    async with session_maker() as session:
+        async with session.begin():
+            stmt = select(Meme).where(Meme.id == meme_id).where(Meme.creator_telegram_id == user_telegram_id)
+
+            result = await session.execute(stmt)
+
+            meme = result.scalars().first()
+            return meme
+
 
 async def close_all_connections():
     close_all_sessions()
