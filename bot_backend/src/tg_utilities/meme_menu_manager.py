@@ -9,6 +9,17 @@ from telegram.ext import (
 from telegram import Message, InlineKeyboardMarkup
 from typing import Optional
 
+async def create_new_menu(context: ContextTypes.DEFAULT_TYPE,
+                          text: str,
+                          chat_id: int,
+                          reply_markup: Optional[InlineKeyboardMarkup] = None) -> Message:
+
+    message = await context.bot.sendMessage(text=text,
+                                             chat_id=chat_id,
+                                             reply_markup=reply_markup)
+    context.user_data[MEMES_CONTROL_MESSAGE] = message
+    return message
+
 
 async def send_media_message_from_meme(context: ContextTypes.DEFAULT_TYPE,
                                        meme: Meme, chat_id: int,

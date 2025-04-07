@@ -27,7 +27,7 @@ from models import Meme, MediaType
 import logging
 
 import database
-from src.tg_utilities.meme_menu_manager import send_media_message_from_meme, delete_current_media_message, delete_menu
+from src.tg_utilities.meme_menu_manager import send_media_message_from_meme, delete_current_media_message, delete_menu, create_new_menu
 
 from tg_utilities.meme_menu_manager import update_meme_menu
 from tg_utilities.generators import (generate_inline_list,
@@ -281,7 +281,7 @@ async def user_get_memes(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data[LAST_SELECTED_PAGE] = 0
 
     # Create message for updater
-    context.user_data[MEMES_CONTROL_MESSAGE] = await update.message.reply_text("Choose meme:", reply_markup=keyboard)
+    await create_new_menu(context=context, text="choose meme:", chat_id=chat_id, reply_markup=keyboard)
 
 
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -298,8 +298,8 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if meme:
             meme_controls = await generate_meme_controls(meme)
 
-            await update_meme_menu(context=context, new_text=meme.title, delete_media=True, chat_id=chat_id)
-            await send_media_message_from_meme(context=context, meme=meme, chat_id=chat_id, reply_markup=meme_controls)
+            await update_meme_menu(context=context, new_text=meme.title, delete_media=True, chat_id=chat_id, reply_markup=meme_controls)
+            await send_media_message_from_meme(context=context, meme=meme, chat_id=chat_id)
 
     elif query_text[:5] == "page:":
         memes = await database.get_all_user_memes(user_id)
