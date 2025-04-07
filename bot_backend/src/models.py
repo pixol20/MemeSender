@@ -21,7 +21,7 @@ class MediaType(enum.Enum):
 class UserLikedMemes(Base):
     __tablename__ = "user_liked_memes"
 
-    id = Column(BigInteger, primary_key=True)
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     user_telegram_id: Mapped[int] = mapped_column(ForeignKey("users.telegram_id"))
     meme_id: Mapped[int] = mapped_column(ForeignKey("memes.id"))
 
