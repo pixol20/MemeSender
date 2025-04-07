@@ -94,10 +94,10 @@ async def handle_upload(update: Update, context: ContextTypes.DEFAULT_TYPE) -> b
 
     await update.message.reply_text("Uploading meme", reply_markup=ReplyKeyboardRemove())
     try:
-        is_successful = await database.add_database_entry(user_id=user_id, telegram_media_id=user_data[TELEGRAM_MEDIA_ID],
-                                                    name=user_data[MEME_NAME], tags=user_data[TAGS],
-                                                    media_type=user_data[MEDIA_TYPE], duration=user_data[DURATION],
-                                                    is_public=user_data[MEME_PUBLIC])
+        is_successful = await database.add_meme(user_id=user_id, telegram_media_id=user_data[TELEGRAM_MEDIA_ID],
+                                                name=user_data[MEME_NAME], tags=user_data[TAGS],
+                                                media_type=user_data[MEDIA_TYPE], duration=user_data[DURATION],
+                                                is_public=user_data[MEME_PUBLIC])
     except Exception as e:
         is_successful = False
         logger.error(f"Error while uploading meme: {str(e)}")

@@ -72,7 +72,7 @@ async def add_user_to_database(telegram_id: int) -> bool:
 
 
 
-async def add_database_entry(
+async def add_meme(
         user_id: int,
         telegram_media_id: str,
         name: str,
