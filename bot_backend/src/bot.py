@@ -296,6 +296,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     query_text = query.data
     user_id = query.from_user.id
+    chat_id = query.message.chat.id
 
     await query.answer()
 
@@ -304,18 +305,18 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         meme = await database.get_meme_by_id_and_check_user(selected_meme, user_id)
         if meme:
             if isinstance(context.user_data.get(MEMES_LIST_MESSAGE, None), Message):
-                await context.bot.deleteMessage(message_id=context.user_data[MEMES_LIST_MESSAGE].id, chat_id = query.message.chat.id)
+                await context.bot.deleteMessage(message_id=context.user_data[MEMES_LIST_MESSAGE].id, chat_id = chat_id)
 
             meme_controls = await generate_meme_controls(meme)
 
             if meme.media_type == MediaType.PHOTO:
-                context.user_data[MEME_MESSAGE] = await context.bot.sendPhoto(photo=meme.telegram_media_id, chat_id=query.message.chat.id, reply_markup=meme_controls)
+                context.user_data[MEME_MESSAGE] = await context.bot.sendPhoto(photo=meme.telegram_media_id, chat_id=chat_id, reply_markup=meme_controls)
             elif meme.media_type == MediaType.VIDEO:
-                context.user_data[MEME_MESSAGE] = await context.bot.sendVideo(video=meme.telegram_media_id, chat_id=query.message.chat.id, reply_markup=meme_controls)
+                context.user_data[MEME_MESSAGE] = await context.bot.sendVideo(video=meme.telegram_media_id, chat_id=chat_id, reply_markup=meme_controls)
             elif meme.media_type == MediaType.GIF:
-                context.user_data[MEME_MESSAGE] = await context.bot.sendAnimation(animation=meme.telegram_media_id, chat_id=query.message.chat.id, reply_markup=meme_controls)
+                context.user_data[MEME_MESSAGE] = await context.bot.sendAnimation(animation=meme.telegram_media_id, chat_id=chat_id, reply_markup=meme_controls)
             elif meme.media_type == MediaType.VOICE:
-                context.user_data[MEME_MESSAGE] = await context.bot.sendVoice(voice=meme.telegram_media_id, chat_id=query.message.chat.id, reply_markup=meme_controls)
+                context.user_data[MEME_MESSAGE] = await context.bot.sendVoice(voice=meme.telegram_media_id, chat_id=chat_id, reply_markup=meme_controls)
 
     elif query_text[:5] == "page:":
         memes = await database.get_all_user_memes(user_id)
