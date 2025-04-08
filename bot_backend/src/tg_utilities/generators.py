@@ -17,8 +17,8 @@ from sqlalchemy import ScalarResult
 from src.models import Meme, MediaType
 import json
 
-MEMES_PER_PAGE = 10
-
+from src.constants import MEMES_PER_PAGE
+from src.constants import CALLBACK_MEME, CALLBACK_CONFIRM_DELETE, CALLBACK_PAGE, CALLBACK_DELETE, CALLBACK_RENAME, CALLBACK_BACK
 
 
 async def generate_inline_list(database_data: list[tuple[str, str, str]]) -> Sequence[InlineQueryResult]:
@@ -86,21 +86,21 @@ async def generate_inline_keyboard_page(in_memes: Sequence[Meme], page_number: i
 
     for current_meme in in_memes[start:end]:
         button_text = await generate_text_for_meme_button(current_meme)
-        new_button = [InlineKeyboardButton(button_text, callback_data=f"meme:{current_meme.id}")]
+        new_button = [InlineKeyboardButton(button_text, callback_data=CALLBACK_MEME+str(current_meme.id))]
         keyboard.append(new_button)
 
     left_right = []
 
 
     if page_number > 0:
-        left_right.append(InlineKeyboardButton("⬅️", callback_data=f"page:{max(0, page_number - 1)}"))
+        left_right.append(InlineKeyboardButton("⬅️", callback_data=CALLBACK_PAGE+str(max(0, page_number - 1))))
 
     # Last page is length of memes divided by memes per page and rounded up.
     # I use minus one here because page numbers start from 0
     last_page_number = math.ceil(in_memes_len / MEMES_PER_PAGE)-1
 
     if page_number < last_page_number:
-        left_right.append(InlineKeyboardButton("➡️", callback_data=f"page:{min(last_page_number, page_number + 1)}"))
+        left_right.append(InlineKeyboardButton("➡️", callback_data=CALLBACK_PAGE+str(min(last_page_number, page_number + 1))))
 
 
     keyboard.append(left_right)
@@ -115,9 +115,9 @@ async def generate_meme_controls(meme: Meme) -> InlineKeyboardMarkup:
            InlineKeyboardMarkup for selected meme
     """
     meme_id = meme.id
-    delete_button = InlineKeyboardButton("🗑️Delete meme🗑️", callback_data=f"delt:{meme_id}")
-    rename_button = InlineKeyboardButton("✏️Rename meme✏️", callback_data=f"rnme:{meme_id}")
-    go_back_button = InlineKeyboardButton("⬅️", callback_data="back")
+    delete_button = InlineKeyboardButton("🗑️Delete meme🗑️", callback_data=CALLBACK_DELETE+str(meme_id))
+    rename_button = InlineKeyboardButton("✏️Rename meme✏️", callback_data=CALLBACK_RENAME+str(meme_id))
+    go_back_button = InlineKeyboardButton("⬅️", callback_data=CALLBACK_BACK)
 
     keyboard = [[delete_button], [rename_button], [go_back_button]]
 
@@ -128,8 +128,8 @@ async def generate_meme_controls(meme: Meme) -> InlineKeyboardMarkup:
 async def generate_yes_no_for_meme_deletion(meme: Meme):
     meme_id = meme.id
 
-    delete_button = InlineKeyboardButton("delete", callback_data=f"cdel:{meme_id}")
-    not_delete_button = InlineKeyboardButton("not delete", callback_data=f"meme:{meme_id}")
+    delete_button = InlineKeyboardButton("delete", callback_data=CALLBACK_CONFIRM_DELETE+str(meme_id))
+    not_delete_button = InlineKeyboardButton("not delete", callback_data=CALLBACK_MEME+str(meme_id))
     keyboard = [[delete_button, not_delete_button]]
 
     result = InlineKeyboardMarkup(keyboard)

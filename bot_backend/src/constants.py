@@ -12,3 +12,14 @@ MEMES_CONTROL_MESSAGE: Final[str]  = "memes_control_message"
 MEME_MEDIA_MESSAGE: Final[str]  = "meme_media_message"
 
 LAST_SELECTED_PAGE: Final[str]  = "last_selected_page"
+
+MEMES_PER_PAGE = 10
+
+# callback data
+CALLBACK_MEME: Final[str] = "meme:"
+CALLBACK_PAGE: Final[str] = "page:"
+CALLBACK_RENAME: Final[str] = "rnme:"
+CALLBACK_DELETE: Final[str] = "delt:"
+CALLBACK_BACK: Final[str] = "back:"
+CALLBACK_CONFIRM_DELETE: Final[str] = "cdel:"
+

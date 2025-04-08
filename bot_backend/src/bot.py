@@ -35,7 +35,8 @@ from tg_utilities.generators import (generate_inline_list,
                                      generate_meme_controls,
                                      generate_yes_no_for_meme_deletion)
 from src.constants import (MEME_NAME, MEME_PUBLIC, MEDIA_TYPE, TAGS, TELEGRAM_MEDIA_ID, DURATION,
-                           MEMES_CONTROL_MESSAGE, LAST_SELECTED_PAGE, MEME_MEDIA_MESSAGE)
+                           LAST_SELECTED_PAGE, CALLBACK_MEME, CALLBACK_PAGE, CALLBACK_BACK, CALLBACK_DELETE,
+                           CALLBACK_RENAME, CALLBACK_CONFIRM_DELETE)
 
 
 logging.basicConfig(
@@ -49,12 +50,20 @@ load_dotenv()
 BOT_TOKEN: Final = getenv("BOT_KEY")
 BOT_USERNAME: Final = getenv("BOT_NAME")
 
-MEME, NAME, DECIDE_USE_TAGS_OR_NO, HANDLE_TAGS, DECIDE_PUBLIC_OR_NO = range(5)
+# MEME, NAME, DECIDE_USE_TAGS_OR_NO, HANDLE_TAGS, DECIDE_PUBLIC_OR_NO = map(chr, range(5))
+#
+# GET_MEME_CONTROL, CHOOSE_MEME, CHOOSE_MEME_ACTION, CHOOSE_DELETE_MEME_OR_NOT, RENAME_MEME, CHANGE_TAGS = map(chr, range(5, 11))
 
+
+# meme upload conversation
+UPLOAD_MEME_MEDIA, CHOOSE_MEME_NAME, DECIDE_USE_TAGS_OR_NO, HANDLE_TAGS, DECIDE_PUBLIC_OR_NO = map(chr, range(1, 6))
+
+# meme edit conversation
+MEME_LIST, CHOOSE_MEME_ACTION, CONFIRM_DELETE = map(chr, range(6, 9))
 
 MAX_TEXT_LENGTH = 512
 
-async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
     user_id = update.message.from_user.id
     success = await database.add_user_to_database(user_id)
     if success:
@@ -62,10 +71,11 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("It seems that something failed. Please report this to the developer")
 
-async def add_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+
+async def add_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
     """Prompts user to send meme"""
     await update.message.reply_text("Send your meme")
-    return MEME
+    return UPLOAD_MEME_MEDIA
 
 def reset_current_upload_data(user_data):
     """Resets all current meme upload related data"""
@@ -111,7 +121,7 @@ async def handle_upload(update: Update, context: ContextTypes.DEFAULT_TYPE) -> b
     reset_current_upload_data(user_data)
     return is_successful
 
-async def upload_meme(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def upload_meme(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
     message = update.message
     media = None
     media_type = None
@@ -145,14 +155,14 @@ async def upload_meme(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 
 
     await update.message.reply_text("Name your meme")
-    return NAME
+    return CHOOSE_MEME_NAME
 
-async def name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
     processed_user_input = update.message.text.strip()
 
     if len(processed_user_input) > MAX_TEXT_LENGTH:
         await update.message.reply_text("❌ the name is too long")
-        return NAME
+        return CHOOSE_MEME_NAME
 
     context.user_data[MEME_NAME] = processed_user_input
     reply_keyboard = [["Yes✅","No❌"]]
@@ -166,7 +176,7 @@ async def name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 
 
-async def decide_use_tags_or_no(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def decide_use_tags_or_no(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
     """decides whether to use tags or not depending on user input"""
     user_data = context.user_data
     user_data[TAGS] = []
@@ -186,7 +196,7 @@ async def decide_use_tags_or_no(update: Update, context: ContextTypes.DEFAULT_TY
         return DECIDE_PUBLIC_OR_NO
 
 
-async def handle_tags(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def handle_tags(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
     """Retrieves user tags separated by messages"""
     user_input = update.message.text
     processed_user_input = user_input.strip()
@@ -200,7 +210,7 @@ async def handle_tags(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     return HANDLE_TAGS
 
 
-async def finish_tags(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def finish_tags(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
     tags = context.user_data.get("tags", [])
 
     await update.message.reply_text(f"Tags collected: {', '.join(tags)}")
@@ -271,7 +281,7 @@ async def inline_query(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
     await update.inline_query.answer(results, cache_time=4)
 
-async def user_get_memes(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def user_get_memes(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
     user_id = update.message.from_user.id
     chat_id = update.message.chat_id
 
@@ -282,72 +292,115 @@ async def user_get_memes(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Create message for updater
     await create_new_menu(context=context, text="choose meme:", chat_id=chat_id, reply_markup=keyboard)
+    return MEME_LIST
 
 
-async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Parses the CallbackQuery and updates the message text."""
+async def meme_list(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
     query = update.callback_query
     query_text = query.data
     user_id = query.from_user.id
     chat_id = query.message.chat.id
+
+    memes = await database.get_all_user_memes(user_id)
+    selected_page = int(query_text[5:])
+    context.user_data[LAST_SELECTED_PAGE] = selected_page
+    keyboard = await generate_inline_keyboard_page(memes, selected_page)
+    await update_meme_menu(context=context,
+                           new_text="Choose meme: ",
+                           delete_media=True,
+                           reply_markup=keyboard,
+                           chat_id=chat_id)
+    return MEME_LIST
+
+
+async def get_meme_control(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
+    query = update.callback_query
+    query_text = query.data
+    user_id = query.from_user.id
+    chat_id = query.message.chat.id
+    selected_meme = int(query_text[5:])
+
+    await query.answer()
+    meme = await database.get_meme_by_id_and_check_user(selected_meme, user_id)
+    if meme:
+        meme_controls = await generate_meme_controls(meme)
+        await update_meme_menu(context=context, new_text=meme.title, delete_media=True, chat_id=chat_id,
+                               reply_markup=meme_controls)
+        await send_media_message_from_meme(context=context, meme=meme, chat_id=chat_id)
+
+    return CHOOSE_MEME_ACTION
+
+
+async def delete_meme(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
+    query = update.callback_query
+    query_text = query.data
+    user_id = query.from_user.id
+    chat_id = query.message.chat.id
+
     await query.answer()
 
-    if query_text[:5] == "meme:":
-        selected_meme = int(query_text[5:])
-        meme = await database.get_meme_by_id_and_check_user(selected_meme, user_id)
-        if meme:
-            meme_controls = await generate_meme_controls(meme)
+    meme_id = int(query_text[5:])
+    meme = await database.get_meme_by_id_and_check_user(meme_id=meme_id, user_telegram_id=user_id)
 
-            await update_meme_menu(context=context, new_text=meme.title, delete_media=True, chat_id=chat_id, reply_markup=meme_controls)
-            await send_media_message_from_meme(context=context, meme=meme, chat_id=chat_id)
+    buttons = await generate_yes_no_for_meme_deletion(meme)
+    meme_title = meme.title
+    await update_meme_menu(new_text=f"Are you sure you want do delete meme: {meme_title}",
+                           reply_markup=buttons,
+                           chat_id=chat_id,
+                           context=context,
+                           delete_media=True)
 
-    elif query_text[:5] == "page:":
-        memes = await database.get_all_user_memes(user_id)
-        selected_page = int(query_text[5:])
-        context.user_data[LAST_SELECTED_PAGE] = selected_page
-        keyboard = await generate_inline_keyboard_page(memes, selected_page)
-        await update_meme_menu(context=context,
-                              new_text="Choose meme: ",
-                              delete_media=True,
-                              reply_markup=keyboard,
-                              chat_id=chat_id)
+    return CONFIRM_DELETE
 
-    elif query_text[:5] == "back":
-        memes = await database.get_all_user_memes(user_id)
-        selected_page = context.user_data.get(LAST_SELECTED_PAGE, 0)
-        keyboard = await generate_inline_keyboard_page(memes, selected_page)
 
-        await update_meme_menu(context=context,
-                              new_text="Choose meme: ",
-                              delete_media=True,
-                              reply_markup=keyboard,
-                              chat_id=chat_id)
+async def confirm_delete_meme(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    query_text = query.data
+    user_id = query.from_user.id
+    chat_id = query.message.chat.id
 
-    elif query_text[:5] == "delt:":
-        meme_id = int(query_text[5:])
-        meme = await database.get_meme_by_id_and_check_user(meme_id=meme_id, user_telegram_id=user_id)
+    await query.answer()
 
-        buttons = await generate_yes_no_for_meme_deletion(meme)
-        meme_title = meme.title
-        await update_meme_menu(new_text=f"Are you sure you want do delete meme: {meme_title}",
-                              reply_markup=buttons,
-                              chat_id=chat_id,
-                              context=context,
-                              delete_media=True)
+    meme_id = int(query_text[5:])
+    await delete_current_media_message(context=context)
+    successful = await database.delete_meme_check_and_check_user(meme_id=meme_id, user_telegram_id=user_id)
+    if successful:
+        await context.bot.sendMessage(text="Meme deleted", chat_id=chat_id)
+    else:
+        await context.bot.sendMessage(text="Something failed", chat_id=chat_id)
+    await delete_menu(context=context, chat_id=chat_id)
 
-    elif query_text[:5] == "cdel:":
-        meme_id = int(query_text[5:])
-        await delete_current_media_message(context=context)
-        successful = await database.delete_meme_check_and_check_user(meme_id=meme_id, user_telegram_id=user_id)
-        if successful:
-            await context.bot.sendMessage(text="Meme deleted", chat_id=chat_id)
-        else:
-            await context.bot.sendMessage(text="Something failed", chat_id=chat_id)
-        await delete_menu(context=context, chat_id=chat_id)
+    return ConversationHandler.END
 
 
 
 
+async def back(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
+    query = update.callback_query
+    user_id = query.from_user.id
+    chat_id = query.message.chat.id
+
+    await query.answer()
+
+    memes = await database.get_all_user_memes(user_id)
+    selected_page = context.user_data.get(LAST_SELECTED_PAGE, 0)
+    keyboard = await generate_inline_keyboard_page(memes, selected_page)
+
+    await update_meme_menu(context=context,
+                          new_text="Choose meme: ",
+                          delete_media=True,
+                          reply_markup=keyboard,
+                          chat_id=chat_id)
+
+    return MEME_LIST
+
+
+async def unknown_callback_query(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    user_id = query.from_user.id
+    chat_id = query.message.chat.id
+
+    await query.answer()
 
 
 async def start_db(application: Application):
@@ -358,27 +411,41 @@ async def stop_db(application: Application):
 
 if __name__ == "__main__":
     logger.info("building")
-    app = Application.builder().token(BOT_TOKEN).post_init(start_db).post_shutdown(stop_db).build()
+    app = Application.builder().token(BOT_TOKEN).post_init(start_db).post_shutdown(stop_db).concurrent_updates(False).build()
     logger.info("adding commands")
-    app.add_handler(CommandHandler('start', start_command),group=1)
-    app.add_handler(CommandHandler("memes", user_get_memes), group=1)
-    conv_handler = ConversationHandler(entry_points=[CommandHandler("add", add_command)],
-                                       states={
-                                           MEME: [MessageHandler(filters.PHOTO | filters.VIDEO | filters.ANIMATION | filters.VOICE, upload_meme)],
-                                           NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, name)],
-                                           DECIDE_USE_TAGS_OR_NO: [MessageHandler(filters.Regex("^(Yes✅|No❌)$"),
-                                                                                  decide_use_tags_or_no)],
-                                           HANDLE_TAGS: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_tags),
-                                                         CommandHandler("finish_tags", finish_tags)],
-                                           DECIDE_PUBLIC_OR_NO: [MessageHandler(filters.Regex("^(Yes✅|No❌)$"),
-                                                                                  decide_public_or_no)]
-                                       },
-                                       fallbacks=[CommandHandler("cancel", cancel),
-                                                  MessageHandler(filters.COMMAND, command_in_wrong_place)]
-    )
-    app.add_handler(conv_handler, group=0)
+    app.add_handler(CommandHandler('start', start_command), group=1)
 
+    add_meme_conv = ConversationHandler(entry_points=[CommandHandler("add", add_command)],
+                                        states={
+                                            UPLOAD_MEME_MEDIA: [MessageHandler(filters.PHOTO | filters.VIDEO | filters.ANIMATION | filters.VOICE, upload_meme)],
+                                            CHOOSE_MEME_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, name)],
+                                            DECIDE_USE_TAGS_OR_NO: [MessageHandler(filters.Regex("^(Yes✅|No❌)$"), decide_use_tags_or_no)],
+                                            HANDLE_TAGS: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_tags),
+                                                          CommandHandler("finish_tags", finish_tags)],
+                                            DECIDE_PUBLIC_OR_NO: [MessageHandler(filters.Regex("^(Yes✅|No❌)$"),
+                                                                                 decide_public_or_no)]
+                                        },
+                                        fallbacks=
+                                        [
+                                            CommandHandler("cancel", cancel),
+                                            MessageHandler(filters.COMMAND, command_in_wrong_place)
+                                        ])
+
+
+    edit_meme_conv = ConversationHandler(entry_points=[CommandHandler("memes", user_get_memes)],
+                                         states= {
+                                             MEME_LIST: [CallbackQueryHandler(get_meme_control, pattern="^"+CALLBACK_MEME), CallbackQueryHandler(meme_list, pattern="^" + CALLBACK_PAGE)],
+                                             CHOOSE_MEME_ACTION: [CallbackQueryHandler(delete_meme, pattern="^"+CALLBACK_DELETE)],
+                                             CONFIRM_DELETE: [CallbackQueryHandler(confirm_delete_meme, pattern="^"+CALLBACK_CONFIRM_DELETE),
+                                                              CallbackQueryHandler(get_meme_control, pattern="^"+CALLBACK_MEME)]
+                                         },
+                                         fallbacks= [
+                                             CallbackQueryHandler(back, pattern="^"+CALLBACK_BACK),
+                                             CallbackQueryHandler(unknown_callback_query)
+                                         ])
+
+    app.add_handler(edit_meme_conv, group=0)
+    app.add_handler(add_meme_conv, group=0)
     app.add_handler(InlineQueryHandler(inline_query))
-    app.add_handler(CallbackQueryHandler(button))
     logger.info("polling")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
