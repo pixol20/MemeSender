@@ -1,4 +1,5 @@
 from collections.abc import Sequence
+from importlib.metadata import entry_points
 from typing import Final
 
 from dotenv import load_dotenv
@@ -9,9 +10,7 @@ import traceback
 
 from telegram import (Update,
                       ReplyKeyboardMarkup,
-                      ReplyKeyboardRemove,
-                      Message, InlineKeyboardButton,
-                      InlineKeyboardMarkup)
+                      ReplyKeyboardRemove)
 
 from telegram.ext import (
     Application,
@@ -23,7 +22,7 @@ from telegram.ext import (
     InlineQueryHandler,
     CallbackQueryHandler
 )
-from models import Meme, MediaType
+from models import MediaType
 
 import logging
 
@@ -33,13 +32,13 @@ import database
 from tg_utilities.generators import (generate_inline_list,
                                      generate_inline_keyboard_page,
                                      generate_meme_controls,
-                                     generate_yes_no_for_meme_deletion)
-from tg_utilities.classes import MemeMenu
+                                     generate_yes_no_for_meme_deletion,
+                                     generate_back_button)
 from src.tg_utilities.menu_manager import create_or_update_menu
 
 from src.constants import (MEME_NAME, MEME_PUBLIC, MEDIA_TYPE, TAGS, TELEGRAM_MEDIA_ID, DURATION,
                            LAST_SELECTED_PAGE, CALLBACK_MEME, CALLBACK_PAGE, CALLBACK_BACK, CALLBACK_DELETE,
-                           CALLBACK_RENAME, CALLBACK_CONFIRM_DELETE)
+                           CALLBACK_RENAME, CALLBACK_CONFIRM_DELETE, RENAMING_MEME_ID)
 
 
 logging.basicConfig(
@@ -63,6 +62,8 @@ UPLOAD_MEME_MEDIA, CHOOSE_MEME_NAME, DECIDE_USE_TAGS_OR_NO, HANDLE_TAGS, DECIDE_
 
 # meme edit conversation
 MEME_LIST, CHOOSE_MEME_ACTION, CONFIRM_DELETE = map(chr, range(6, 9))
+
+ENTER_NEW_NAME = chr(9)
 
 MAX_TEXT_LENGTH = 512
 
@@ -88,6 +89,9 @@ def reset_current_upload_data(user_data):
     user_data[MEDIA_TYPE] = None
     user_data[DURATION] = None
     user_data[MEME_PUBLIC] = None
+
+def reset_current_edit_data(user_data):
+    user_data[RENAMING_MEME_ID] = None
 
 async def handle_upload(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
     """
@@ -258,13 +262,13 @@ async def command_in_wrong_place(update: Update, context: ContextTypes.DEFAULT_T
     """sends message when user inputs wrong command"""
     user = update.message.from_user
 
-    logger.info("User %s canceled the upload.", user.first_name)
 
     await update.message.reply_text(
-        "Wrong command. Meme upload canceled", reply_markup=ReplyKeyboardRemove()
+        "Wrong command. Dialog canceled", reply_markup=ReplyKeyboardRemove()
     )
 
     reset_current_upload_data(context.user_data)
+    reset_current_edit_data(context.user_data)
 
     return ConversationHandler.END
 
@@ -376,7 +380,7 @@ async def confirm_delete_meme(update: Update, context: ContextTypes.DEFAULT_TYPE
     meme_id = int(query_text[5:])
     successful = await database.delete_meme_check_and_check_user(meme_id=meme_id, user_telegram_id=user_id)
     if successful:
-        back_button = InlineKeyboardMarkup([[InlineKeyboardButton("⬅️", callback_data=CALLBACK_BACK)]])
+        back_button = await generate_back_button()
 
         await create_or_update_menu(context=context,
                                     chat_id=chat_id,
@@ -388,10 +392,50 @@ async def confirm_delete_meme(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     return MEME_LIST
 
+async def rename_callback_query(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
+    query = update.callback_query
+    query_text = query.data
+    user_id = query.from_user.id
+    chat_id = query.message.chat.id
+
+    await query.answer()
+
+    meme_id = int(query_text[5:])
+    context.user_data[RENAMING_MEME_ID] = meme_id
+
+    back_button = await generate_back_button()
+    await create_or_update_menu(context=context,
+                                chat_id=chat_id,
+                                text="Enter new name: ",
+                                delete_media=True,
+                                reply_markup=back_button)
+    return ENTER_NEW_NAME
 
 
 
-async def back(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
+async def rename_meme(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    chat_id = update.message.chat_id
+    new_name = update.message.text
+    user_id = update.message.from_user.id
+
+    meme_id = context.user_data.get(RENAMING_MEME_ID)
+    back_button = await generate_back_button()
+
+    if isinstance(meme_id, int):
+        await database.rename_meme_and_check_user(meme_id=meme_id, user_telegram_id=user_id, new_name=new_name)
+        await create_or_update_menu(context=context,
+                                  chat_id=chat_id,
+                                  text="Meme renamed",
+                                  reply_markup=back_button)
+    else:
+        await create_or_update_menu(context=context,
+                                    chat_id=chat_id,
+                                    text="It seems that something went wrong on our side. Try going back and renaming again",
+                                    reply_markup=back_button)
+    await update.message.delete()
+    return ConversationHandler.END
+
+async def back(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     user_id = query.from_user.id
     chat_id = query.message.chat.id
@@ -407,8 +451,7 @@ async def back(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
                                 text="Choose meme: ",
                                 delete_media=True,
                                 reply_markup=keyboard)
-    return MEME_LIST
-
+    return ConversationHandler.END
 
 async def unknown_callback_query(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -471,16 +514,27 @@ if __name__ == "__main__":
 
     # app.add_handler(edit_meme_conv, group=0)
 
-    app.add_handler(CommandHandler("memes", user_get_memes))
-    app.add_handler(CallbackQueryHandler(get_meme_control, pattern="^" + CALLBACK_MEME))
-    app.add_handler(CallbackQueryHandler(meme_list, pattern="^" + CALLBACK_PAGE))
-    app.add_handler(CallbackQueryHandler(delete_meme, pattern="^" + CALLBACK_DELETE))
-    app.add_handler(CallbackQueryHandler(confirm_delete_meme, pattern="^" + CALLBACK_CONFIRM_DELETE))
-    app.add_handler(CallbackQueryHandler(back, pattern="^" + CALLBACK_BACK))
-    app.add_handler(CallbackQueryHandler(unknown_callback_query))
+    rename_conversation_handler = ConversationHandler(
+                            entry_points=[CallbackQueryHandler(rename_callback_query, pattern="^"+CALLBACK_RENAME)],
+                            states={
+                                ENTER_NEW_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND,rename_meme)]
+                            },
+                            fallbacks=[
+                                CallbackQueryHandler(back, pattern="^" + CALLBACK_BACK),
+                                MessageHandler(filters.COMMAND, command_in_wrong_place),
+                                CallbackQueryHandler(unknown_callback_query)
+                            ])
 
+    app.add_handler(rename_conversation_handler, group=1)
 
-    app.add_handler(add_meme_conv, group=0)
+    app.add_handler(CommandHandler("memes", user_get_memes), group=0)
+    app.add_handler(CallbackQueryHandler(get_meme_control, pattern="^" + CALLBACK_MEME), group=0)
+    app.add_handler(CallbackQueryHandler(meme_list, pattern="^" + CALLBACK_PAGE), group=0)
+    app.add_handler(CallbackQueryHandler(delete_meme, pattern="^" + CALLBACK_DELETE), group=0)
+    app.add_handler(CallbackQueryHandler(confirm_delete_meme, pattern="^" + CALLBACK_CONFIRM_DELETE), group=0)
+    app.add_handler(CallbackQueryHandler(back, pattern="^" + CALLBACK_BACK), group=0)
+
+    app.add_handler(add_meme_conv, group=1)
     app.add_handler(InlineQueryHandler(inline_query))
     logger.info("polling")
     app.run_polling(allowed_updates=Update.ALL_TYPES)

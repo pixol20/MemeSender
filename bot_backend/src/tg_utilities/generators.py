@@ -137,3 +137,6 @@ async def generate_yes_no_for_meme_deletion(meme: Meme):
 
     result = InlineKeyboardMarkup(keyboard)
     return result
+
+async def generate_back_button() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([[InlineKeyboardButton("⬅️", callback_data=CALLBACK_BACK)]])

@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 from os import getenv
 from typing import Optional
 
-from sqlalchemy import select, text, Sequence, ScalarResult, delete
+from sqlalchemy import select, text, Sequence, ScalarResult, delete, update
 from sqlalchemy.orm import close_all_sessions
 from sqlalchemy.ext.asyncio import (
     create_async_engine,
@@ -185,6 +185,21 @@ async def delete_meme_check_and_check_user(meme_id: int, user_telegram_id: int) 
         return False
 
     return True
+
+
+async def rename_meme_and_check_user(meme_id: int, user_telegram_id: int, new_name: str) -> bool:
+    try:
+        async with session_maker() as session:
+            async with session.begin():
+                stmt = update(Meme).where(Meme.id == meme_id).where(Meme.creator_telegram_id == user_telegram_id).values(title=new_name)
+                result = await session.execute(stmt)
+    except Exception as e:
+        logger.error(f"Error while deleting meme: {e}")
+        return False
+
+    return True
+
+
 
 async def close_all_connections():
     close_all_sessions()

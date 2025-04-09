@@ -18,6 +18,9 @@ class MemeMenu:
                            reply_markup: Optional[InlineKeyboardMarkup] = None,
                            new_meme: Optional[Meme] = None,
                            delete_media: bool = False):
+        if self.text_message:
+            await self.text_message.edit_text(text=new_text, reply_markup=reply_markup)
+
         if delete_media:
             await self.delete_media()
 
@@ -38,9 +41,6 @@ class MemeMenu:
                 self.media_message = await context.bot.sendVoice(voice=new_meme.telegram_media_id,
                                                                  chat_id=chat_id)
 
-
-        if self.text_message:
-            await self.text_message.edit_text(text=new_text, reply_markup=reply_markup)
 
 
     async def destroy(self):

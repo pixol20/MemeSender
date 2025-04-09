@@ -6,6 +6,7 @@ TELEGRAM_MEDIA_ID: Final[str]  = "telegram_media_id"
 DURATION: Final[str]  = "duration"
 TAGS: Final[str]  = "tags"
 MEME_PUBLIC: Final[str]  = "meme_public"
+RENAMING_MEME_ID: Final[str] = "renaming_meme_id"
 
 # Message from bot that contains memes created by user.
 MEMES_CONTROL_MESSAGE: Final[str]  = "memes_control_message"
