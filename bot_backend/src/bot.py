@@ -35,10 +35,11 @@ from tg_utilities.generators import (generate_inline_list,
                                      generate_meme_controls,
                                      generate_yes_no_for_meme_deletion)
 from tg_utilities.classes import MemeMenu
+from src.tg_utilities.menu_manager import create_or_update_menu
 
 from src.constants import (MEME_NAME, MEME_PUBLIC, MEDIA_TYPE, TAGS, TELEGRAM_MEDIA_ID, DURATION,
                            LAST_SELECTED_PAGE, CALLBACK_MEME, CALLBACK_PAGE, CALLBACK_BACK, CALLBACK_DELETE,
-                           CALLBACK_RENAME, CALLBACK_CONFIRM_DELETE, MEMES_CONTROL_MESSAGE)
+                           CALLBACK_RENAME, CALLBACK_CONFIRM_DELETE)
 
 
 logging.basicConfig(
@@ -290,15 +291,12 @@ async def user_get_memes(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     keyboard = await generate_inline_keyboard_page(memes, 0)
     context.user_data[LAST_SELECTED_PAGE] = 0
 
-    # Delete old menu
-    old_menu = context.user_data.get(MEMES_CONTROL_MESSAGE)
-
-    if isinstance(old_menu, MemeMenu):
-        await old_menu.destroy()
-
-    # Create message for updater
-    menu_message = await update.message.reply_text("Choose meme", reply_markup=keyboard)
-    context.user_data[MEMES_CONTROL_MESSAGE] = MemeMenu(text_message=menu_message)
+    await create_or_update_menu(context=context,
+                                chat_id=chat_id,
+                                text="choose meme: ",
+                                reply_markup=keyboard,
+                                delete_media=True,
+                                destroy_menu=True)
     return MEME_LIST
 
 
@@ -308,6 +306,7 @@ async def meme_list(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
     user_id = query.from_user.id
     chat_id = query.message.chat.id
 
+    await query.answer()
     memes = await database.get_all_user_memes(user_id)
 
     selected_page = int(query_text[5:])
@@ -315,13 +314,11 @@ async def meme_list(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
 
     keyboard = await generate_inline_keyboard_page(memes, selected_page)
 
-    menu_message = context.user_data.get(MEMES_CONTROL_MESSAGE, None)
-    if isinstance(menu_message, MemeMenu):
-        await menu_message.switch_state(context=context,
-                                        chat_id=chat_id,
-                                        new_text="Choose meme: ",
-                                        delete_media=True,
-                                        reply_markup=keyboard)
+    await create_or_update_menu(context=context,
+                                chat_id=chat_id,
+                                text="choose meme: ",
+                                reply_markup=keyboard,
+                                delete_media=True)
     return MEME_LIST
 
 
@@ -337,15 +334,12 @@ async def get_meme_control(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     if meme:
         meme_controls = await generate_meme_controls(meme)
 
-        menu_message = context.user_data.get(MEMES_CONTROL_MESSAGE, None)
-        if isinstance(menu_message, MemeMenu):
-            await menu_message.switch_state(context=context,
-                                            chat_id=chat_id,
-                                            new_text=meme.title,
-                                            delete_media=False,
-                                            new_meme=meme,
-                                            reply_markup=meme_controls)
-
+        await create_or_update_menu(context=context,
+                                    chat_id=chat_id,
+                                    text=meme.title,
+                                    delete_media=False,
+                                    new_meme=meme,
+                                    reply_markup=meme_controls)
     return CHOOSE_MEME_ACTION
 
 
@@ -363,14 +357,11 @@ async def delete_meme(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str
     if meme:
         buttons = await generate_yes_no_for_meme_deletion(meme)
 
-        menu_message = context.user_data.get(MEMES_CONTROL_MESSAGE, None)
-
-        if isinstance(menu_message, MemeMenu):
-            await menu_message.switch_state(context=context,
-                                            chat_id=chat_id,
-                                            new_text=f"Are you sure you want to delete {meme.title}",
-                                            delete_media=True,
-                                            reply_markup=buttons)
+        await create_or_update_menu(context=context,
+                                    chat_id=chat_id,
+                                    text=f"Are you sure you want to delete {meme.title}",
+                                    delete_media=True,
+                                    reply_markup=buttons)
     return CONFIRM_DELETE
 
 
@@ -386,14 +377,12 @@ async def confirm_delete_meme(update: Update, context: ContextTypes.DEFAULT_TYPE
     successful = await database.delete_meme_check_and_check_user(meme_id=meme_id, user_telegram_id=user_id)
     if successful:
         back_button = InlineKeyboardMarkup([[InlineKeyboardButton("⬅️", callback_data=CALLBACK_BACK)]])
-        menu_message = context.user_data.get(MEMES_CONTROL_MESSAGE, None)
 
-        if isinstance(menu_message, MemeMenu):
-            await menu_message.switch_state(context=context,
-                                            chat_id=chat_id,
-                                            new_text="Meme deleted",
-                                            delete_media=True,
-                                            reply_markup=back_button)
+        await create_or_update_menu(context=context,
+                                    chat_id=chat_id,
+                                    text="Meme deleted",
+                                    delete_media=True,
+                                    reply_markup=back_button)
     else:
         await context.bot.sendMessage(text="Something failed", chat_id=chat_id)
 
@@ -413,14 +402,11 @@ async def back(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
     selected_page = context.user_data.get(LAST_SELECTED_PAGE, 0)
     keyboard = await generate_inline_keyboard_page(memes, selected_page)
 
-    menu_message = context.user_data.get(MEMES_CONTROL_MESSAGE, None)
-
-    if isinstance(menu_message, MemeMenu):
-        await menu_message.switch_state(context=context,
-                                        chat_id=chat_id,
-                                        new_text="Choose meme: ",
-                                        delete_media=True,
-                                        reply_markup=keyboard)
+    await create_or_update_menu(context=context,
+                                chat_id=chat_id,
+                                text="Choose meme: ",
+                                delete_media=True,
+                                reply_markup=keyboard)
     return MEME_LIST
 
 
@@ -461,29 +447,40 @@ if __name__ == "__main__":
                                             MessageHandler(filters.COMMAND, command_in_wrong_place)
                                         ])
 
-    edit_meme_conv = ConversationHandler(
-        entry_points=[CommandHandler("memes", user_get_memes)],
-        states={
-            MEME_LIST: [
-                CallbackQueryHandler(get_meme_control, pattern="^" + CALLBACK_MEME),
-                CallbackQueryHandler(meme_list, pattern="^" + CALLBACK_PAGE)
-            ],
-            CHOOSE_MEME_ACTION: [
-                CallbackQueryHandler(delete_meme, pattern="^" + CALLBACK_DELETE)
-            ],
-            CONFIRM_DELETE: [
-                CallbackQueryHandler(confirm_delete_meme, pattern="^" + CALLBACK_CONFIRM_DELETE),
-                CallbackQueryHandler(get_meme_control, pattern="^" + CALLBACK_MEME)
-            ]
-        },
-        fallbacks=[
-            CommandHandler("memes", user_get_memes),
-            CallbackQueryHandler(back, pattern="^" + CALLBACK_BACK),
-            CallbackQueryHandler(unknown_callback_query)
-        ]
-    )
+    # edit_meme_conv = ConversationHandler(
+    #     entry_points=[CommandHandler("memes", user_get_memes)],
+    #     states={
+    #         MEME_LIST: [
+    #             CallbackQueryHandler(get_meme_control, pattern="^" + CALLBACK_MEME),
+    #             CallbackQueryHandler(meme_list, pattern="^" + CALLBACK_PAGE)
+    #         ],
+    #         CHOOSE_MEME_ACTION: [
+    #             CallbackQueryHandler(delete_meme, pattern="^" + CALLBACK_DELETE)
+    #         ],
+    #         CONFIRM_DELETE: [
+    #             CallbackQueryHandler(confirm_delete_meme, pattern="^" + CALLBACK_CONFIRM_DELETE),
+    #             CallbackQueryHandler(get_meme_control, pattern="^" + CALLBACK_MEME)
+    #         ]
+    #     },
+    #     fallbacks=[
+    #         CommandHandler("memes", user_get_memes),
+    #         CallbackQueryHandler(back, pattern="^" + CALLBACK_BACK),
+    #         CallbackQueryHandler(unknown_callback_query)
+    #     ]
+    # )
+
+    # app.add_handler(edit_meme_conv, group=0)
+
+    app.add_handler(CommandHandler("memes", user_get_memes))
+    app.add_handler(CallbackQueryHandler(get_meme_control, pattern="^" + CALLBACK_MEME))
+    app.add_handler(CallbackQueryHandler(meme_list, pattern="^" + CALLBACK_PAGE))
+    app.add_handler(CallbackQueryHandler(delete_meme, pattern="^" + CALLBACK_DELETE))
+    app.add_handler(CallbackQueryHandler(confirm_delete_meme, pattern="^" + CALLBACK_CONFIRM_DELETE))
+    app.add_handler(CallbackQueryHandler(back, pattern="^" + CALLBACK_BACK))
+    app.add_handler(CallbackQueryHandler(unknown_callback_query))
+
+
     app.add_handler(add_meme_conv, group=0)
-    app.add_handler(edit_meme_conv, group=0)
     app.add_handler(InlineQueryHandler(inline_query))
     logger.info("polling")
     app.run_polling(allowed_updates=Update.ALL_TYPES)

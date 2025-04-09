@@ -9,12 +9,15 @@ from telegram import (InlineQueryResultCachedVideo,
                       InlineQueryResult,
                       InlineKeyboardMarkup,
                       InlineKeyboardButton,
+                      Update,
                       )
+from telegram.ext import ContextTypes
 
 from sqlalchemy import ScalarResult
 
 
 from src.models import Meme, MediaType
+from src.tg_utilities.classes import MemeMenu
 import json
 
 from src.constants import MEMES_PER_PAGE
