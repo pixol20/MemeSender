@@ -42,10 +42,9 @@ class User(Base):
     created_memes: Mapped[list["Meme"]] = relationship()
     created_collections: Mapped[list["Collection"]] = relationship()
     is_banned: Mapped[bool] = mapped_column(default=False)
-    last_upload_date: Mapped[datetime] = Column(DateTime(timezone=True), server_default=func.now())
-
+    
     def __repr__(self):
-        return f"User(telegram_id={self.telegram_id}, is_banned={self.is_banned}, last_upload_date={self.last_upload_date}"
+        return f"User(telegram_id={self.telegram_id}, is_banned={self.is_banned}"
 
 
 class Meme(Base):
