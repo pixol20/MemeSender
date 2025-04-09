@@ -18,7 +18,7 @@ from src.models import MediaType
 
 load_dotenv("../../.env")
 # Database configuration from environment variables
-HOST = getenv("DB_HOST", "localhost")
+HOST = "localhost"
 DBNAME = getenv("POSTGRES_DB")
 USER = getenv("POSTGRES_USER")
 PASSWORD = getenv("POSTGRES_PASSWORD")

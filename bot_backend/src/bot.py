@@ -1,11 +1,10 @@
-from collections.abc import Sequence
-from importlib.metadata import entry_points
+import time
 from typing import Final
 
 from dotenv import load_dotenv
 from os import getenv
 
-from uuid import uuid4
+
 import traceback
 
 from telegram import (Update,
@@ -38,7 +37,8 @@ from src.tg_utilities.menu_manager import create_or_update_menu
 
 from src.constants import (MEME_NAME, MEME_PUBLIC, MEDIA_TYPE, TAGS, TELEGRAM_MEDIA_ID, DURATION,
                            LAST_SELECTED_PAGE, CALLBACK_MEME, CALLBACK_PAGE, CALLBACK_BACK, CALLBACK_DELETE,
-                           CALLBACK_RENAME, CALLBACK_CONFIRM_DELETE, RENAMING_MEME_ID)
+                           CALLBACK_RENAME, CALLBACK_CONFIRM_DELETE, RENAMING_MEME_ID, LAST_UPLOAD_TIME,
+                            UPLOAD_COOLDOWN, MAX_TAGS, MAX_TEXT_LENGTH)
 
 
 logging.basicConfig(
@@ -65,7 +65,6 @@ MEME_LIST, CHOOSE_MEME_ACTION, CONFIRM_DELETE = map(chr, range(6, 9))
 
 ENTER_NEW_NAME = chr(9)
 
-MAX_TEXT_LENGTH = 512
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.message.from_user.id
@@ -105,6 +104,13 @@ async def handle_upload(update: Update, context: ContextTypes.DEFAULT_TYPE) -> b
     user_data = context.user_data
     user_id = update.message.from_user.id
 
+    last_upload_time = context.user_data.get(LAST_UPLOAD_TIME)
+
+    if isinstance(last_upload_time, float):
+        elapsed = time.time() - last_upload_time
+        if elapsed < UPLOAD_COOLDOWN:
+            await update.message.reply_text(f"Please wait {UPLOAD_COOLDOWN} seconds between meme uploads")
+            return False
 
     logger.info("User %s uploading meme: %s", update.message.from_user.first_name,
                 context.user_data[MEME_NAME])
@@ -121,6 +127,7 @@ async def handle_upload(update: Update, context: ContextTypes.DEFAULT_TYPE) -> b
         logger.error("Stack Trace:\n" + traceback.format_exc())
 
     if is_successful:
+        context.user_data[LAST_UPLOAD_TIME] = time.time()
         await update.message.reply_text("Meme uploaded")
     else:
         await update.message.reply_text("Something failed")
@@ -189,7 +196,7 @@ async def decide_use_tags_or_no(update: Update, context: ContextTypes.DEFAULT_TY
     user_data[TAGS] = []
 
     if update.message.text == "Yes✅":
-        await update.message.reply_text("Input tags one per message, /finish_tags to finish",
+        await update.message.reply_text("Input tags one per message(up to 20), /finish_tags to finish",
                                         reply_markup=ReplyKeyboardRemove())
         return HANDLE_TAGS
     else:
@@ -210,6 +217,10 @@ async def handle_tags(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str
 
     if len(processed_user_input) > MAX_TEXT_LENGTH:
         await update.message.reply_text("❌ the tag is too long")
+        return HANDLE_TAGS
+
+    if len(context.user_data[TAGS]) >= MAX_TAGS:
+        await update.message.reply_text("❌ too much tags")
         return HANDLE_TAGS
 
     context.user_data[TAGS].append(processed_user_input)

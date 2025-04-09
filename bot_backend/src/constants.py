@@ -24,3 +24,10 @@ CALLBACK_DELETE: Final[str] = "delt:"
 CALLBACK_BACK: Final[str] = "back:"
 CALLBACK_CONFIRM_DELETE: Final[str] = "cdel:"
 
+# 15 seconds
+UPLOAD_COOLDOWN: Final[float] = 15
+
+MAX_TAGS = 20
+MAX_TEXT_LENGTH = 256
+
+LAST_UPLOAD_TIME: Final[str] = "last_upload_time"
