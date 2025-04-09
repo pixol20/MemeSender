@@ -15,14 +15,13 @@ from sqlalchemy.exc import IntegrityError
 from models import User, Base, Meme
 from src.models import MediaType
 
-# Load environment variables
-load_dotenv()
 
+load_dotenv("../../.env")
 # Database configuration from environment variables
-HOST = getenv("HOST", "localhost")
-DBNAME = getenv("DBNAME")
-USER = getenv("DBUSER")
-PASSWORD = getenv("PASSWORD")
+HOST = getenv("DB_HOST", "localhost")
+DBNAME = getenv("POSTGRES_DB")
+USER = getenv("POSTGRES_USER")
+PASSWORD = getenv("POSTGRES_PASSWORD")
 PORT = getenv("PORT")
 MEMES_IN_INLINE_LIST = 20
 

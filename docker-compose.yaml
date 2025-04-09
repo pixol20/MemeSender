@@ -3,22 +3,18 @@ services:
     image: groonga/pgroonga
     ports:
       - "5432:5432"
+    env_file: ".env"
     command: ["postgres", "-c", "enable_seqscan=off"]
     restart: always
-    environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=password
-      - POSTGRES_DB=Memes
     volumes:
       - postgres-data:/var/lib/postgresql/data
   bot:
-    build: .
+    build: ./bot_backend/
+    env_file: ".env"
     image: bot_image
     restart: always
     depends_on:
       - database
-    environment:
-      - HOST=database
 volumes:
   postgres-data:
     driver: local
