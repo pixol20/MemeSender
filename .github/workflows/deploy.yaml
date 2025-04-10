@@ -20,6 +20,7 @@ jobs:
             # git clone or pull repo
             if cd MemeSender; then git pull; else git clone git@github.com:pixol20/MemeSender.git && cd MemeSender; fi
 
+            echo "${{ secrets.DOTENV }}" > ./.env
             
             # build and run compose project
             docker compose up -d --build
