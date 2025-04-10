@@ -1,0 +1,26 @@
+name: Deploy to DigitalOcean
+on:
+  push:
+    tags:
+      - deploy-*
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Clone repo to droplet
+      uses: appleboy/ssh-action@v1.2.2
+      with:
+        host: ${{ secrets.HOST }}
+        port: ${{ secrets.PORT }}
+        username: ${{ secrets.USERNAME }}
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        script: |
+            cd /home
+            # git clone or pull repo
+            if cd MemeSender; then git pull; else git clone git@github.com:pixol20/MemeSender.git; fi
+            
+            # build and run compose project
+            docker compose up -d --build
+      
+      
