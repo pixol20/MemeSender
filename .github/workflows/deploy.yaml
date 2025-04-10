@@ -19,7 +19,8 @@ jobs:
             cd /home
             # git clone or pull repo
             if cd MemeSender; then git pull; else git clone git@github.com:pixol20/MemeSender.git; fi
-            
+
+            cd MemeSender
             # build and run compose project
             docker compose up -d --build
       
