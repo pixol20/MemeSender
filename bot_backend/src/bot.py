@@ -70,7 +70,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     user_id = update.message.from_user.id
     success = await database.add_user_to_database(user_id)
     if success:
-        await update.message.reply_text("Hello World")
+        await update.message.reply_text("Hey! To use just mention me @MemeSender_Bot in your message. Send me your meme using /add command if you want to add your own meme. Please report any issues you encounter here https://github.com/pixol20/MemeSender/issues")
     else:
         await update.message.reply_text("It seems that something failed. Please report this to the developer")
 
