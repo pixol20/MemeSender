@@ -1,6 +1,8 @@
 name: Deploy to DigitalOcean
 on:
   push:
+    tags:
+      - deploy-*
 
 jobs:
   migrate:
