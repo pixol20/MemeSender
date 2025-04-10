@@ -11,3 +11,5 @@
 1. Write your own `.env` file. You can use `.env.example` as example
 2. Build it using `docker compose up -d --build`
 3. Your bot is live!
+
+webapp is work in progress
