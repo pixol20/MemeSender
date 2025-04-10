@@ -1,0 +1,5 @@
+python-telegram-bot
+psycopg[binary,pool]
+python-dotenv
+alembic
+SQLAlchemy
