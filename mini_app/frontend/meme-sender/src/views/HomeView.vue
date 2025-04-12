@@ -1,9 +1,7 @@
 <script setup lang="ts">
-import TheWelcome from '../components/TheWelcome.vue'
+import MediaList from '@/components/MediaList.vue';
 </script>
 
 <template>
-  <main>
-    <TheWelcome />
-  </main>
+    <MediaList />
 </template>
