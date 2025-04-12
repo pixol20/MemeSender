@@ -5,3 +5,7 @@ import MediaList from '@/components/MediaList.vue';
 <template>
     <MediaList />
 </template>
+
+<script lang="ts">
+    
+</script>
